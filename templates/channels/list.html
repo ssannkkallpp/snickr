@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Channels — {{ workspace.name }} — snickr{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <a href="{{ url_for('workspaces.workspace_detail', ws_id=workspace.workspace_id) }}"
+       class="text-muted text-decoration-none small">← {{ workspace.name }}</a>
+    <h2 class="mb-0 mt-1">Channels</h2>
+  </div>
+  <a href="{{ url_for('channels.new_channel', ws_id=workspace.workspace_id) }}"
+     class="btn btn-primary">Create New Channel</a>
+</div>
+
+<h5 class="text-muted mb-3">Your Channels</h5>
+{% if not joined_channels %}
+<p class="text-muted">You haven't joined any channels yet.</p>
+{% else %}
+<div class="list-group mb-4">
+  {% for ch in joined_channels %}
+  <a href="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
+     class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+    <span>
+      <span class="text-muted me-1">{% if ch.channel_type == 'private' %}🔒{% else %}#{% endif %}</span>
+      {{ ch.name }}
+    </span>
+    <span class="d-flex align-items-center gap-2">
+      <span class="badge bg-secondary rounded-pill">{{ ch.member_count }}</span>
+      {% if ch.channel_type == 'private' %}
+      <span class="badge bg-warning text-dark">Private</span>
+      {% else %}
+      <span class="badge bg-info text-dark">Public</span>
+      {% endif %}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if available_channels %}
+<h5 class="text-muted mb-3">Available to Join</h5>
+<div class="list-group">
+  {% for ch in available_channels %}
+  <div class="list-group-item d-flex justify-content-between align-items-center">
+    <span>
+      <span class="text-muted me-1">#</span>{{ ch.name }}
+      <span class="text-muted small ms-2">{{ ch.member_count }} member{{ 's' if ch.member_count != 1 else '' }}</span>
+    </span>
+    <form method="post"
+          action="{{ url_for('channels.join_channel', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}">
+      <button type="submit" class="btn btn-sm btn-outline-primary">Join</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% elif not joined_channels %}
+<p class="text-muted">No public channels to join yet.</p>
+{% endif %}
+{% endblock %}

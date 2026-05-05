@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}{{ workspace.name }} — Members — snickr{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <a href="{{ url_for('workspaces.workspace_detail', ws_id=workspace.workspace_id) }}"
+       class="text-muted text-decoration-none small">← {{ workspace.name }}</a>
+    <h2 class="mb-0 mt-1">Members</h2>
+  </div>
+  <form method="post"
+        action="{{ url_for('workspaces.leave_workspace', ws_id=workspace.workspace_id, target_user_id=current_user_id) }}">
+    <button type="submit" class="btn btn-outline-danger btn-sm"
+            onclick="return confirm('Leave this workspace?')">Leave Workspace</button>
+  </form>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>User</th>
+          <th>Member since</th>
+          <th>Role</th>
+          {% if is_admin %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>
+            <strong>{{ m.username }}</strong>
+            {% if m.nickname %}
+            <span class="text-muted small"> · {{ m.nickname }}</span>
+            {% endif %}
+            {% if m.user_id == current_user_id %}
+            <span class="badge bg-secondary ms-1">you</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">
+            {{ m.joined_at.strftime('%b %d, %Y') if m.joined_at else '—' }}
+          </td>
+          <td>
+            {% if m.is_admin %}
+            <span class="badge bg-primary">Admin</span>
+            {% else %}
+            <span class="text-muted small">Member</span>
+            {% endif %}
+          </td>
+          {% if is_admin %}
+          <td>
+            <div class="d-flex gap-2 flex-wrap">
+              {% if not m.is_admin %}
+              <form method="post"
+                    action="{{ url_for('workspaces.add_admin', ws_id=workspace.workspace_id, target_user_id=m.user_id) }}">
+                <button type="submit" class="btn btn-sm btn-outline-primary">Promote to Admin</button>
+              </form>
+              {% else %}
+              {% if admin_count == 1 %}
+              <button class="btn btn-sm btn-outline-secondary" disabled
+                      title="Cannot remove — only admin remaining">Remove Admin</button>
+              {% else %}
+              <form method="post"
+                    action="{{ url_for('workspaces.remove_admin', ws_id=workspace.workspace_id, target_user_id=m.user_id) }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Remove Admin</button>
+              </form>
+              {% endif %}
+              {% endif %}
+              {% if m.user_id != current_user_id %}
+              <form method="post"
+                    action="{{ url_for('workspaces.remove_member', ws_id=workspace.workspace_id, target_user_id=m.user_id) }}"
+                    onsubmit="return confirm('Remove {{ m.username }} from this workspace?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if is_admin %}
+<!-- Invite section -->
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Invite a Member</h5>
+    <form method="post"
+          action="{{ url_for('workspaces.invite_member', ws_id=workspace.workspace_id) }}">
+      <div class="input-group mb-2" style="max-width: 480px;">
+        <input type="email" class="form-control" id="invite-email" name="email"
+               placeholder="user@example.com">
+        <button type="button" class="btn btn-outline-secondary" onclick="lookupUser()">Find User</button>
+        <button type="submit" class="btn btn-primary">Send Invitation</button>
+      </div>
+    </form>
+    <div id="user-lookup-result" class="small mt-1"></div>
+  </div>
+</div>
+
+<!-- Pending invitations summary -->
+{% if pending_invitations %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Pending Invitations ({{ pending_invitations | length }})</span>
+    <a href="{{ url_for('workspaces.invitations', ws_id=workspace.workspace_id) }}"
+       class="btn btn-sm btn-outline-secondary">Manage</a>
+  </div>
+  <ul class="list-group list-group-flush">
+    {% for inv in pending_invitations %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      <span>{{ inv.invitee_username }} <span class="text-muted small">({{ inv.invitee_email }})</span></span>
+      <span class="text-muted small">invited by {{ inv.inviter_username }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+<p class="text-muted small">
+  No pending invitations.
+  <a href="{{ url_for('workspaces.invitations', ws_id=workspace.workspace_id) }}">Manage invitations</a>
+</p>
+{% endif %}
+{% endif %}
+
+<script>
+async function lookupUser() {
+  const email = document.getElementById('invite-email').value.trim();
+  const result = document.getElementById('user-lookup-result');
+  result.textContent = '';
+  if (!email) return;
+
+  const resp = await fetch('/users/search?q=' + encodeURIComponent(email));
+  const data = await resp.json();
+
+  const span = document.createElement('span');
+  if (data.user_id) {
+    span.className = 'text-success';
+    span.textContent = 'Found: ' + data.username + (data.nickname ? ' (' + data.nickname + ')' : '');
+  } else {
+    span.className = 'text-danger';
+    span.textContent = 'No user found with that email.';
+  }
+  result.appendChild(span);
+}
+</script>
+{% endblock %}

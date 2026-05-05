@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if channel.channel_type == 'direct' %}DM with @{{ dm_partner or 'user' }}
+  {% else %}#{{ channel.name }}{% endif %}
+  — {{ workspace.name }} — snickr
+{% endblock %}
+
+{# Use full-width, no top padding so the chat fills the viewport #}
+{% block main_class %}container-fluid p-0{% endblock %}
+
+{% block content %}
+{% set avatar_colors = ['#e74c3c','#3498db','#2ecc71','#9b59b6','#f39c12','#1abc9c','#e67e22','#16a085'] %}
+
+<div class="d-flex" style="height:calc(100vh - 56px); overflow:hidden;">
+
+  <!-- ═══════════════════════ SIDEBAR ═══════════════════════════ -->
+  <nav class="d-flex flex-column border-end bg-light flex-shrink-0"
+       style="width:220px; overflow-y:auto;">
+
+    <!-- Workspace name -->
+    <div class="px-3 py-2 border-bottom">
+      <a href="{{ url_for('workspaces.workspace_detail', ws_id=workspace.workspace_id) }}"
+         class="fw-bold text-dark text-decoration-none d-block text-truncate">
+        {{ workspace.name }}
+      </a>
+    </div>
+
+    <div class="px-2 py-2 flex-grow-1">
+
+      <!-- Regular channels -->
+      <div class="d-flex justify-content-between align-items-center px-1 mb-1">
+        <span class="text-uppercase text-muted fw-semibold" style="font-size:.68rem;">Channels</span>
+        <a href="{{ url_for('channels.new_channel', ws_id=workspace.workspace_id) }}"
+           class="text-muted text-decoration-none fw-bold" title="New channel">+</a>
+      </div>
+
+      {% for ch in sidebar_channels if ch.channel_type != 'direct' %}
+      <a href="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
+         class="d-flex align-items-center text-decoration-none rounded px-2 py-1 mb-px sb-link
+                {{ 'sb-active fw-semibold' if ch.channel_id == channel.channel_id else 'text-secondary' }}">
+        <span class="me-1">{% if ch.channel_type == 'private' %}🔒{% else %}#{% endif %}</span>
+        <span class="text-truncate small">{{ ch.name }}</span>
+      </a>
+      {% else %}
+      <p class="text-muted small px-2">No channels yet.</p>
+      {% endfor %}
+
+      <a href="{{ url_for('channels.list_channels', ws_id=workspace.workspace_id) }}"
+         class="d-block text-muted text-decoration-none rounded px-2 py-1 small sb-link">
+        Browse channels
+      </a>
+
+      <!-- DMs -->
+      {% set dm_channels = sidebar_channels | selectattr('channel_type', 'equalto', 'direct') | list %}
+      <div class="d-flex justify-content-between align-items-center px-1 mb-1 mt-3">
+        <span class="text-uppercase text-muted fw-semibold" style="font-size:.68rem;">Direct Messages</span>
+      </div>
+
+      {% for ch in dm_channels %}
+      <a href="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
+         class="d-flex align-items-center text-decoration-none rounded px-2 py-1 mb-px sb-link
+                {{ 'sb-active fw-semibold' if ch.channel_id == channel.channel_id else 'text-secondary' }}">
+        <span class="me-1">@</span>
+        <span class="text-truncate small">{{ ch.dm_partner or 'Unknown' }}</span>
+      </a>
+      {% endfor %}
+
+      <!-- New DM toggle -->
+      <button class="btn btn-link text-muted text-decoration-none small px-2 py-1 w-100 text-start sb-link rounded"
+              type="button" data-bs-toggle="collapse" data-bs-target="#new-dm-collapse">
+        + New DM
+      </button>
+      <div class="collapse px-1" id="new-dm-collapse">
+        <input type="text" class="form-control form-control-sm mt-1"
+               id="dm-search-input" placeholder="Search members…" autocomplete="off">
+        <div id="dm-search-results"></div>
+        <form method="post" id="new-dm-form" class="d-none mt-1"
+              action="{{ url_for('channels.new_dm', ws_id=workspace.workspace_id) }}">
+          <input type="hidden" name="target_user_id" id="dm-target-id">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            DM <span id="dm-target-name"></span>
+          </button>
+        </form>
+      </div>
+
+    </div><!-- /px-2 -->
+
+    <!-- Bottom: current user -->
+    <div class="px-3 py-2 border-top mt-auto">
+      <a href="/profile" class="text-muted text-decoration-none small">
+        {{ g.current_user.username if g.current_user }}
+      </a>
+    </div>
+  </nav>
+  <!-- /SIDEBAR -->
+
+  <!-- ═══════════════════════ MAIN AREA ════════════════════════ -->
+  <div class="d-flex flex-column flex-grow-1" style="overflow:hidden;">
+
+    <!-- Channel header -->
+    <div class="border-bottom px-4 py-2 bg-white d-flex justify-content-between align-items-center flex-shrink-0">
+      <div>
+        <h5 class="mb-0">
+          {% if channel.channel_type == 'direct' %}
+            <span class="text-muted me-1">@</span>{{ dm_partner or 'Unknown' }}
+          {% elif channel.channel_type == 'private' %}
+            🔒 {{ channel.name }}
+            <span class="badge bg-warning text-dark ms-1" style="font-size:.7rem;">Private</span>
+          {% else %}
+            <span class="text-muted me-1">#</span>{{ channel.name }}
+            <span class="badge bg-info text-dark ms-1" style="font-size:.7rem;">Public</span>
+          {% endif %}
+        </h5>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <small class="text-muted">
+          {{ channel_members | length }}
+          member{{ 's' if channel_members | length != 1 else '' }}
+        </small>
+
+        {% if channel.channel_type == 'private' and is_channel_creator %}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-primary dropdown-toggle"
+                  type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+            Invite
+          </button>
+          <div class="dropdown-menu p-3" style="min-width:280px;">
+            <p class="small text-muted mb-2">Search workspace members</p>
+            <form method="post"
+                  action="{{ url_for('channels.invite_to_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
+              <input type="hidden" name="target_user_id" id="invite-target-id">
+              <div class="mb-2">
+                <input type="text" class="form-control form-control-sm"
+                       id="invite-search-input" placeholder="Username or nickname…" autocomplete="off">
+              </div>
+              <div id="invite-search-results" class="mb-2"></div>
+              <button type="submit" class="btn btn-primary btn-sm w-100"
+                      id="invite-submit-btn" disabled>Send Invitation</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if channel.channel_type != 'direct' %}
+        <form method="post"
+              action="{{ url_for('channels.leave_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}"
+              onsubmit="return confirm('Leave this channel?')">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Leave</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Content row: messages + members panel -->
+    <div class="d-flex flex-grow-1" style="overflow:hidden;">
+
+      <!-- ── Message feed ── -->
+      <div class="d-flex flex-column flex-grow-1" style="overflow:hidden;">
+
+        <div id="messages" class="flex-grow-1 px-4 py-3" style="overflow-y:auto;">
+
+          {% if not messages %}
+          <div class="text-center text-muted py-5">
+            <p class="mb-0">No messages yet — say something!</p>
+          </div>
+          {% endif %}
+
+          {% for m in messages %}
+
+            {% if m.show_date %}
+            <div class="text-center my-3">
+              <small class="text-muted border rounded-pill px-3 py-1 bg-white">
+                {{ m.posted_at.strftime('%B %d, %Y') }}
+              </small>
+            </div>
+            {% endif %}
+
+            {% if not m.is_continuation %}
+            <div class="d-flex gap-2 mt-3">
+              {# Initials avatar with stable per-user colour #}
+              <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold"
+                   style="width:36px;height:36px;background:{{ avatar_colors[m.user_id % (avatar_colors|length)] }};color:#fff;font-size:14px;">
+                {{ m.username[0].upper() }}
+              </div>
+              <div>
+                <span class="fw-semibold">{{ m.username }}</span>
+                {% if m.nickname %}
+                <span class="text-muted small"> · {{ m.nickname }}</span>
+                {% endif %}
+                <span class="text-muted small ms-2">{{ m.posted_at.strftime('%I:%M %p') }}</span>
+              </div>
+            </div>
+            {% endif %}
+
+            <div class="ps-5 mb-1"
+                 style="white-space:pre-wrap;word-break:break-word;">{{ m.body }}</div>
+
+          {% endfor %}
+        </div><!-- /#messages -->
+
+        <!-- Compose box -->
+        <div class="border-top px-4 py-3 bg-white flex-shrink-0">
+          <form method="post"
+                action="{{ url_for('channels.post_message', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
+            <div class="input-group">
+              <input type="text" class="form-control" name="body" id="compose-input"
+                     autocomplete="off" required
+                     placeholder="Message {% if channel.channel_type == 'direct' %}@{{ dm_partner or 'user' }}{% else %}#{{ channel.name }}{% endif %}">
+              <button type="submit" class="btn btn-primary">Send</button>
+            </div>
+          </form>
+        </div>
+
+      </div><!-- /message feed -->
+
+      <!-- ── Members panel ── -->
+      <div class="border-start bg-light flex-shrink-0 d-flex flex-column"
+           style="width:190px;overflow-y:auto;">
+        <div class="px-3 py-2 border-bottom">
+          <small class="text-uppercase text-muted fw-semibold" style="font-size:.68rem;">
+            Members ({{ channel_members | length }})
+          </small>
+        </div>
+        <div class="px-2 py-2">
+          {% for m in channel_members %}
+          <div class="d-flex align-items-start justify-content-between py-1">
+            <div class="overflow-hidden">
+              <div class="small fw-semibold text-truncate">{{ m.username }}</div>
+              {% if m.nickname %}
+              <div class="text-muted text-truncate" style="font-size:.72rem;">{{ m.nickname }}</div>
+              {% endif %}
+              {% if m.is_ws_admin %}
+              <span class="badge bg-primary" style="font-size:.6rem;">Admin</span>
+              {% endif %}
+            </div>
+            {% if is_ws_admin and m.user_id != current_user_id %}
+            <form method="post"
+                  action="{{ url_for('workspaces.remove_member', ws_id=workspace.workspace_id, target_user_id=m.user_id) }}"
+                  data-username="{{ m.username }}">
+              <button type="submit"
+                      class="btn btn-link btn-sm text-danger p-0 ms-1 lh-1"
+                      title="Remove {{ m.username }} from workspace"
+                      onclick="return confirm('Remove ' + this.closest('form').dataset.username + ' from this workspace?')">
+                ×
+              </button>
+            </form>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div><!-- /members panel -->
+
+    </div><!-- /content row -->
+  </div><!-- /MAIN AREA -->
+
+</div><!-- /outer flex -->
+
+<style>
+.sb-link:hover      { background-color: rgba(0,0,0,.07); }
+.sb-active          { background-color: rgba(13,110,253,.15); color: #0d6efd !important; }
+.mb-px              { margin-bottom: 2px; }
+</style>
+
+<script>
+// ── Auto-scroll messages to bottom ──────────────────────────────────────────
+(function () {
+  const feed = document.getElementById('messages');
+  if (feed) feed.scrollTop = feed.scrollHeight;
+})();
+
+// ── Submit compose on Enter (Shift+Enter = newline) ──────────────────────────
+document.getElementById('compose-input').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    this.closest('form').submit();
+  }
+});
+
+// ── Sidebar DM member search ─────────────────────────────────────────────────
+(function () {
+  const input = document.getElementById('dm-search-input');
+  if (!input) return;
+
+  input.addEventListener('input', async function () {
+    const q = this.value.trim();
+    const resultsEl = document.getElementById('dm-search-results');
+    const formEl    = document.getElementById('new-dm-form');
+    resultsEl.textContent = '';
+    formEl.classList.add('d-none');
+    if (!q) return;
+
+    const resp = await fetch(
+      '/workspaces/{{ workspace.workspace_id }}/members/search?q=' + encodeURIComponent(q)
+    );
+    const data = await resp.json();
+
+    if (!data.length) {
+      const p = document.createElement('p');
+      p.className = 'small text-muted mt-1 mb-0';
+      p.textContent = 'No members found.';
+      resultsEl.appendChild(p);
+      return;
+    }
+    const ul = document.createElement('ul');
+    ul.className = 'list-group list-group-flush mt-1';
+    data.forEach(function (user) {
+      const li = document.createElement('li');
+      li.className = 'list-group-item list-group-item-action small py-1 px-2';
+      li.textContent = user.username + (user.nickname ? ' (' + user.nickname + ')' : '');
+      li.style.cursor = 'pointer';
+      li.addEventListener('click', function () {
+        document.getElementById('dm-target-id').value   = user.user_id;
+        document.getElementById('dm-target-name').textContent = user.username;
+        formEl.classList.remove('d-none');
+        resultsEl.textContent = '';
+        input.value = user.username;
+      });
+      ul.appendChild(li);
+    });
+    resultsEl.appendChild(ul);
+  });
+})();
+
+// ── Private channel invite member search ─────────────────────────────────────
+{% if channel.channel_type == 'private' and is_channel_creator %}
+(function () {
+  const input = document.getElementById('invite-search-input');
+  if (!input) return;
+
+  input.addEventListener('input', async function () {
+    const q = this.value.trim();
+    const resultsEl  = document.getElementById('invite-search-results');
+    const submitBtn  = document.getElementById('invite-submit-btn');
+    const targetInput = document.getElementById('invite-target-id');
+    resultsEl.textContent = '';
+    submitBtn.disabled = true;
+    targetInput.value = '';
+    if (!q) return;
+
+    const resp = await fetch(
+      '/workspaces/{{ workspace.workspace_id }}/members/search?q=' + encodeURIComponent(q)
+    );
+    const data = await resp.json();
+
+    if (!data.length) {
+      const p = document.createElement('p');
+      p.className = 'small text-muted mb-0';
+      p.textContent = 'No members found.';
+      resultsEl.appendChild(p);
+      return;
+    }
+    data.forEach(function (user) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-secondary btn-sm w-100 text-start mb-1';
+      btn.textContent = user.username + (user.nickname ? ' (' + user.nickname + ')' : '');
+      btn.addEventListener('click', function () {
+        targetInput.value    = user.user_id;
+        input.value          = user.username;
+        submitBtn.disabled   = false;
+        resultsEl.textContent = '';
+      });
+      resultsEl.appendChild(btn);
+    });
+  });
+})();
+{% endif %}
+</script>
+{% endblock %}

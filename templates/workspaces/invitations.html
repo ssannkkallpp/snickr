@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{{ workspace.name }} — Pending Invitations — snickr{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <a href="{{ url_for('workspaces.members', ws_id=workspace.workspace_id) }}"
+     class="text-muted text-decoration-none small">← Members</a>
+  <h2 class="mb-0 mt-1">Pending Invitations</h2>
+  <p class="text-muted small">{{ workspace.name }}</p>
+</div>
+
+{% if not invitations %}
+<div class="text-center py-5 text-muted">
+  <h5>No pending invitations</h5>
+  <p>Invite members from the <a href="{{ url_for('workspaces.members', ws_id=workspace.workspace_id) }}">members page</a>.</p>
+</div>
+
+{% else %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Invitee</th>
+          <th>Invited by</th>
+          <th>Invited at</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invitations %}
+        <tr>
+          <td>
+            <strong>{{ inv.invitee_username }}</strong>
+            <span class="text-muted small d-block">{{ inv.invitee_email }}</span>
+          </td>
+          <td class="text-muted small align-middle">{{ inv.inviter_username }}</td>
+          <td class="text-muted small align-middle">
+            {{ inv.invited_at.strftime('%b %d, %Y %H:%M') if inv.invited_at else '—' }}
+          </td>
+          <td class="align-middle">
+            <form method="post"
+                  action="{{ url_for('workspaces.revoke_invitation', ws_id=workspace.workspace_id, inv_id=inv.invitation_id) }}"
+                  onsubmit="return confirm('Revoke this invitation?')">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Revoke</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

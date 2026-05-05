@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Your Workspaces — snickr{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">Your Workspaces</h2>
+  <a href="{{ url_for('workspaces.new_workspace') }}" class="btn btn-primary">New Workspace</a>
+</div>
+
+{% if not workspaces %}
+<div class="text-center py-5">
+  <h4 class="text-muted">No workspaces yet</h4>
+  <p class="text-muted">Create a workspace to start collaborating with your team.</p>
+  <a href="{{ url_for('workspaces.new_workspace') }}" class="btn btn-primary btn-lg mt-2">
+    Create your first workspace
+  </a>
+</div>
+
+{% else %}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+  {% for ws in workspaces %}
+  <div class="col">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title d-flex align-items-center gap-2">
+          <a href="{{ url_for('workspaces.workspace_detail', ws_id=ws.workspace_id) }}"
+             class="text-decoration-none stretched-link">{{ ws.name }}</a>
+          {% if ws.is_admin %}
+          <span class="badge bg-primary">Admin</span>
+          {% endif %}
+        </h5>
+        {% if ws.description %}
+        <p class="card-text text-muted small">{{ ws.description }}</p>
+        {% endif %}
+      </div>
+      <div class="card-footer text-muted small">
+        {{ ws.member_count }} member{{ 's' if ws.member_count != 1 else '' }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

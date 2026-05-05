@@ -25,11 +25,11 @@ def create_app():
     from routes.channels import channels_bp
     app.register_blueprint(channels_bp)
 
-    # from routes.invitations import invitations_bp
-    # app.register_blueprint(invitations_bp)
+    from routes.invitations import invitations_bp
+    app.register_blueprint(invitations_bp)
 
-    # from routes.search import search_bp
-    # app.register_blueprint(search_bp)
+    from routes.search import search_bp
+    app.register_blueprint(search_bp)
 
     # from routes.profile import profile_bp
     # app.register_blueprint(profile_bp)

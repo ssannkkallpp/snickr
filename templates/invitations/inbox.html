@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% set total = (workspace_invitations | length) + (channel_invitations | length) %}
+
+{% block title %}Invitations — snickr{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="mb-0">
+    Invitations
+    {% if total > 0 %}
+    <span class="badge bg-primary ms-2" style="font-size:.6em; vertical-align:middle;">
+      {{ total }} pending
+    </span>
+    {% endif %}
+  </h2>
+</div>
+
+{% if total == 0 %}
+{# ── Fully empty state ─────────────────────────────────────────── #}
+<div class="text-center py-5 text-muted">
+  <h5>You have no pending invitations</h5>
+  <p class="mb-3">When someone invites you to a workspace or channel it will appear here.</p>
+  <a href="{{ url_for('workspaces.list_workspaces') }}" class="btn btn-outline-primary">
+    Go to Workspaces
+  </a>
+</div>
+
+{% else %}
+
+{# ── Workspace Invitations ─────────────────────────────────────── #}
+<h5 class="text-muted mb-3">Workspace Invitations</h5>
+
+{% if not workspace_invitations %}
+<p class="text-muted mb-4">No pending workspace invitations.</p>
+{% else %}
+<div class="row row-cols-1 row-cols-md-2 g-3 mb-5">
+  {% for inv in workspace_invitations %}
+  <div class="col">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-1">{{ inv.workspace_name }}</h5>
+        {% if inv.description %}
+        <p class="text-muted small mb-2">{{ inv.description }}</p>
+        {% endif %}
+        <p class="text-muted small mb-1">
+          Invited by <strong>{{ inv.inviter_username }}</strong>
+        </p>
+        <p class="text-muted small mb-3">
+          {{ inv.invited_at.strftime('%b %d, %Y at %I:%M %p') if inv.invited_at else '—' }}
+        </p>
+        <div class="d-flex gap-2">
+          <form method="post"
+                action="{{ url_for('invitations.accept_workspace_invitation', inv_id=inv.invitation_id) }}">
+            <button type="submit" class="btn btn-primary btn-sm">Accept</button>
+          </form>
+          <form method="post"
+                action="{{ url_for('invitations.decline_workspace_invitation', inv_id=inv.invitation_id) }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Decline</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Channel Invitations ───────────────────────────────────────── #}
+<h5 class="text-muted mb-3">Channel Invitations</h5>
+
+{% if not channel_invitations %}
+<p class="text-muted mb-4">No pending channel invitations.</p>
+{% else %}
+<div class="row row-cols-1 row-cols-md-2 g-3">
+  {% for inv in channel_invitations %}
+  <div class="col">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-1">
+          #{{ inv.channel_name }}
+          <span class="badge bg-warning text-dark ms-1" style="font-size:.65em;">Private</span>
+        </h5>
+        <p class="text-muted small mb-1">
+          In workspace: <strong>{{ inv.workspace_name }}</strong>
+        </p>
+        <p class="text-muted small mb-1">
+          Invited by <strong>{{ inv.inviter_username }}</strong>
+        </p>
+        <p class="text-muted small mb-3">
+          {{ inv.invited_at.strftime('%b %d, %Y at %I:%M %p') if inv.invited_at else '—' }}
+        </p>
+        <div class="d-flex gap-2">
+          <form method="post"
+                action="{{ url_for('invitations.accept_channel_invitation', inv_id=inv.invitation_id) }}">
+            <button type="submit" class="btn btn-primary btn-sm">Accept</button>
+          </form>
+          <form method="post"
+                action="{{ url_for('invitations.decline_channel_invitation', inv_id=inv.invitation_id) }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Decline</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endif %}{# end total == 0 #}
+{% endblock %}

@@ -1,6 +1,6 @@
 from flask import (
     Blueprint, render_template, request, redirect,
-    url_for, session, flash, abort, jsonify,
+    url_for, session, flash, abort,
 )
 from db import get_db
 from utils import login_required
@@ -260,40 +260,6 @@ def members(ws_id):
         pending_invitations=pending_invitations,
         current_user_id=user_id,
     )
-
-
-# ── GET /workspaces/<ws_id>/members/search ────────────────────────────────────
-
-@workspaces_bp.route("/<int:ws_id>/members/search")
-@login_required
-def members_search(ws_id):
-    user_id = session["user_id"]
-    db = get_db()
-
-    if not _is_member(db, ws_id, user_id):
-        abort(403)
-
-    q = request.args.get("q", "").strip()
-    if not q:
-        return jsonify([])
-
-    pattern = f"%{q}%"
-    with db.cursor() as cur:
-        cur.execute(
-            """
-            SELECT u.user_id, u.username, u.nickname
-            FROM workspace_members wm
-            JOIN users u ON u.user_id = wm.user_id
-            WHERE wm.workspace_id = %s AND wm.status = 'active'
-              AND (u.username ILIKE %s OR u.nickname ILIKE %s)
-            LIMIT 10
-            """,
-            (ws_id, pattern, pattern),
-        )
-        results = [{"user_id": r[0], "username": r[1], "nickname": r[2]}
-                   for r in cur.fetchall()]
-
-    return jsonify(results)
 
 
 # ── POST /workspaces/<ws_id>/members/invite ───────────────────────────────────

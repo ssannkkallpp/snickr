@@ -16,7 +16,7 @@
     <a class="navbar-brand fw-bold" href="/workspaces">snickr</a>
     <div class="ms-auto d-flex align-items-center gap-3">
       {% if session.get('user_id') %}
-        <a class="nav-link text-white" href="/invitations">Invitations</a>
+        <a class="nav-link text-white" href="{{ url_for('invitations.list_invitations') }}">Invitations</a>
         <span class="text-white-50">{{ g.current_user.username if g.current_user }}</span>
         <a class="nav-link text-white" href="/profile">Profile</a>
         <form method="post" action="{{ url_for('auth.logout') }}" class="m-0">

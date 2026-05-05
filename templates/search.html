@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Search — {{ workspace_name }} — snickr{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h2 class="mb-3">Search Messages</h2>
+
+  {# ── Workspace selector + search bar ───────────────────────────── #}
+  <form method="get" action="{{ url_for('search.search') }}" id="search-form">
+    <input type="hidden" name="workspace" id="workspace-input" value="{{ workspace_id }}">
+
+    <div class="row g-2 align-items-center">
+      {% if user_workspaces | length > 1 %}
+      <div class="col-auto">
+        <select class="form-select" id="workspace-select"
+                onchange="switchWorkspace(this.value)">
+          {% for ws in user_workspaces %}
+          <option value="{{ ws.workspace_id }}"
+                  {% if ws.workspace_id == workspace_id %}selected{% endif %}>
+            {{ ws.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% else %}
+      <div class="col-auto">
+        <span class="form-control-plaintext fw-semibold">{{ workspace_name }}</span>
+      </div>
+      {% endif %}
+
+      <div class="col">
+        <input type="text" class="form-control" name="q"
+               value="{{ q }}" placeholder="Search messages…"
+               autofocus autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Search</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+{# ── Results / empty states ────────────────────────────────────────── #}
+{% if not q %}
+<div class="text-center py-5 text-muted">
+  <p class="fs-5">Enter a keyword above to search messages in <strong>{{ workspace_name }}</strong>.</p>
+</div>
+
+{% elif result_count == 0 %}
+<div class="text-center py-5 text-muted">
+  <h5>No results found for "<em>{{ q }}</em>" in {{ workspace_name }}</h5>
+  <p>Try a different keyword.</p>
+</div>
+
+{% else %}
+<p class="text-muted mb-3">
+  <strong>{{ result_count }}</strong> result{{ 's' if result_count != 1 else '' }}
+  for "<em>{{ q }}</em>" in <strong>{{ workspace_name }}</strong>
+</p>
+
+<div class="d-flex flex-column gap-3">
+  {% for r in results %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {# Channel context #}
+      <div class="mb-2">
+        {% if r.channel_type == 'direct' %}
+        <a href="/workspaces/{{ workspace_id }}/channels/{{ r.channel_id }}"
+           class="text-muted text-decoration-none small">
+          Direct Message
+        </a>
+        {% else %}
+        <a href="/workspaces/{{ workspace_id }}/channels/{{ r.channel_id }}"
+           class="text-muted text-decoration-none small">
+          {% if r.channel_type == 'private' %}🔒{% else %}#{% endif %}{{ r.channel_name }}
+        </a>
+        {% endif %}
+      </div>
+
+      {# Highlighted body — escape applied in route before <mark> insertion #}
+      <p class="mb-2" style="white-space:pre-wrap; word-break:break-word;">{{ r.highlighted_body | safe }}</p>
+
+      {# Attribution #}
+      <div class="text-muted small">
+        <strong>{{ r.posted_by }}</strong>
+        {% if r.nickname %}<span> · {{ r.nickname }}</span>{% endif %}
+        <span class="ms-2">{{ r.posted_at.strftime('%b %d, %Y at %I:%M %p') }}</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<script>
+function switchWorkspace(wsId) {
+  document.getElementById('workspace-input').value = wsId;
+  document.getElementById('search-form').submit();
+}
+</script>
+{% endblock %}

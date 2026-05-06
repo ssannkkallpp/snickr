@@ -157,6 +157,10 @@ def new_channel(ws_id):
                 (ch_id, ws_id, user_id),
             )
         db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        flash("A channel with that name already exists in this workspace.", "error")
+        return render_template("channels/new.html", workspace=workspace), 422
     except Exception:
         db.rollback()
         raise
@@ -402,12 +406,18 @@ def join_channel(ws_id, ch_id):
         if cur.fetchone():
             return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
-        cur.execute(
-            """INSERT INTO channel_members (channel_id, workspace_id, user_id, joined_at)
-               VALUES (%s, %s, %s, NOW())""",
-            (ch_id, ws_id, user_id),
-        )
-    db.commit()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO channel_members (channel_id, workspace_id, user_id, joined_at)
+                   VALUES (%s, %s, %s, NOW())
+                   ON CONFLICT (channel_id, user_id) DO NOTHING""",
+                (ch_id, ws_id, user_id),
+            )
+        db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
@@ -489,12 +499,18 @@ def invite_to_channel(ws_id, ch_id):
             flash("A pending invitation already exists for that user.", "error")
             return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
-        cur.execute(
-            """INSERT INTO channel_invitations (channel_id, inviter_id, invitee_id, status)
-               VALUES (%s, %s, %s, 'pending')""",
-            (ch_id, user_id, target_user_id),
-        )
-    db.commit()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO channel_invitations (channel_id, inviter_id, invitee_id, status)
+                   VALUES (%s, %s, %s, 'pending')""",
+                (ch_id, user_id, target_user_id),
+            )
+        db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        flash("A pending invitation already exists for that user in this channel.", "error")
+        return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
     flash("Invitation sent.", "success")
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))

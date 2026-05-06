@@ -1,3 +1,4 @@
+import psycopg2
 from flask import (
     Blueprint, render_template, request, redirect,
     url_for, session, flash, abort,
@@ -302,13 +303,19 @@ def invite_member(ws_id):
             flash("A pending invitation already exists for that user.", "error")
             return redirect(url_for("workspaces.members", ws_id=ws_id))
 
-        cur.execute(
-            """INSERT INTO workspace_invitations
-                   (workspace_id, inviter_id, invitee_id, status)
-               VALUES (%s, %s, %s, 'pending')""",
-            (ws_id, user_id, target_id),
-        )
-    db.commit()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO workspace_invitations
+                       (workspace_id, inviter_id, invitee_id, status)
+                   VALUES (%s, %s, %s, 'pending')""",
+                (ws_id, user_id, target_id),
+            )
+        db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        flash("A pending invitation already exists for that user.", "error")
+        return redirect(url_for("workspaces.members", ws_id=ws_id))
 
     flash("Invitation sent.", "success")
     return redirect(url_for("workspaces.members", ws_id=ws_id))
@@ -420,11 +427,17 @@ def add_admin(ws_id, target_user_id):
             flash("That user is already an admin.", "error")
             return redirect(url_for("workspaces.members", ws_id=ws_id))
 
-        cur.execute(
-            "INSERT INTO workspace_admins (workspace_id, user_id) VALUES (%s, %s)",
-            (ws_id, target_user_id),
-        )
-    db.commit()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO workspace_admins (workspace_id, user_id) VALUES (%s, %s)",
+                (ws_id, target_user_id),
+            )
+        db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        flash("That user is already an admin of this workspace.", "error")
+        return redirect(url_for("workspaces.members", ws_id=ws_id))
 
     flash("Admin added.", "success")
     return redirect(url_for("workspaces.members", ws_id=ws_id))

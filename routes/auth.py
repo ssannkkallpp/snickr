@@ -1,3 +1,4 @@
+import psycopg2
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from db import get_db
@@ -40,17 +41,24 @@ def signup():
             flash("That username is already taken.", "error")
             return render_template("auth/signup.html"), 422
 
-        password_hash = generate_password_hash(password)
-        cur.execute(
-            """
-            INSERT INTO users (email, username, nickname, password_hash)
-            VALUES (%s, %s, %s, %s)
-            RETURNING user_id
-            """,
-            (email, username, nickname, password_hash),
-        )
-        user_id = cur.fetchone()[0]
-    db.commit()
+    password_hash = generate_password_hash(password)
+
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users (email, username, nickname, password_hash)
+                VALUES (%s, %s, %s, %s)
+                RETURNING user_id
+                """,
+                (email, username, nickname, password_hash),
+            )
+            user_id = cur.fetchone()[0]
+        db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        flash("An account with that email or username already exists.", "error")
+        return render_template("auth/signup.html"), 422
 
     session.clear()
     session["user_id"] = user_id

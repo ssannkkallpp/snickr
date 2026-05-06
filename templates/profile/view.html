@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — {{ user.username }} — snickr{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-6 offset-md-3">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-4">Your Profile</h4>
+
+        <!-- ── Account Information (read-only) ──────────────────────── -->
+        <div class="mb-4">
+          <div class="mb-3">
+            <div class="fw-semibold">Username</div>
+            <div>{{ user.username }}</div>
+            <div class="form-text">Usernames cannot be changed.</div>
+          </div>
+          <div class="mb-3">
+            <div class="fw-semibold">Email</div>
+            <div>{{ user.email }}</div>
+            <div class="form-text">Email cannot be changed.</div>
+          </div>
+          <div class="mb-3">
+            <div class="fw-semibold">Member since</div>
+            <div>{{ user.created_at.strftime('%B %d, %Y') }}</div>
+          </div>
+        </div>
+
+        <hr>
+
+        <!-- ── Edit Profile form ─────────────────────────────────────── -->
+        <form method="post" action="{{ url_for('profile.profile') }}">
+
+          <div class="mb-3">
+            <label for="nickname" class="form-label">Nickname</label>
+            <input type="text" class="form-control" id="nickname" name="nickname"
+                   value="{{ user.nickname or '' }}"
+                   placeholder="Add a display name">
+            <div class="form-text">
+              This is how you appear to others. Does not have to be unique.
+            </div>
+          </div>
+
+          <hr class="my-4">
+          <h6 class="text-muted mb-1">Change Password</h6>
+          <p class="text-muted small mb-3">Leave these blank to keep your current password.</p>
+
+          <div class="mb-3">
+            <label for="current_password" class="form-label">Current password</label>
+            <input type="password" class="form-control" id="current_password"
+                   name="current_password" autocomplete="current-password">
+          </div>
+
+          <div class="mb-3">
+            <label for="new_password" class="form-label">New password</label>
+            <input type="password" class="form-control" id="new_password"
+                   name="new_password" autocomplete="new-password">
+            <div class="form-text">Minimum 8 characters.</div>
+          </div>
+
+          <div class="mb-4">
+            <label for="confirm_password" class="form-label">Confirm new password</label>
+            <input type="password" class="form-control" id="confirm_password"
+                   name="confirm_password" autocomplete="new-password">
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">Save changes</button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

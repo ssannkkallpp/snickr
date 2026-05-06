@@ -52,5 +52,31 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmVSMvV63uPRVvDmC27/zOjEGqjS"
         crossorigin="anonymous"></script>
+
+<script>
+document.querySelectorAll('form[method="post"]').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        if (e.defaultPrevented) return;
+        this.querySelectorAll('button[type="submit"]').forEach(btn => {
+            btn.disabled = true;
+            btn.dataset.originalText = btn.textContent;
+            btn.textContent = 'Please wait...';
+        });
+    });
+});
+</script>
+
+<script>
+window.addEventListener('pageshow', function(e) {
+    if (e.persisted) {
+        document.querySelectorAll('button[type="submit"]').forEach(btn => {
+            btn.disabled = false;
+            if (btn.dataset.originalText) {
+                btn.textContent = btn.dataset.originalText;
+            }
+        });
+    }
+});
+</script>
 </body>
 </html>

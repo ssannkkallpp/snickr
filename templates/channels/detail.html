@@ -273,7 +273,7 @@
 document.getElementById('compose-input').addEventListener('keydown', function (e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    this.closest('form').submit();
+    this.closest('form').requestSubmit();
   }
 });
 

@@ -31,8 +31,8 @@ def create_app():
     from routes.search import search_bp
     app.register_blueprint(search_bp)
 
-    # from routes.profile import profile_bp
-    # app.register_blueprint(profile_bp)
+    from routes.profile import profile_bp
+    app.register_blueprint(profile_bp)
 
     @app.before_request
     def load_current_user():

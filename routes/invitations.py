@@ -1,3 +1,4 @@
+import psycopg2
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, abort
 from db import get_db
 from utils import login_required
@@ -217,10 +218,14 @@ def accept_channel_invitation(inv_id):
             )
             cur.execute(
                 """INSERT INTO channel_members (channel_id, workspace_id, user_id, joined_at)
-                   VALUES (%s, %s, %s, NOW())""",
+                   VALUES (%s, %s, %s, NOW())
+                   ON CONFLICT (channel_id, user_id) DO NOTHING""",
                 (channel_id, workspace_id, user_id),
             )
         db.commit()
+    except psycopg2.errors.UniqueViolation:
+        db.rollback()
+        return redirect(url_for("channels.channel_detail", ws_id=workspace_id, ch_id=channel_id))
     except Exception:
         db.rollback()
         raise

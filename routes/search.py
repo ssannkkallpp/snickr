@@ -15,14 +15,12 @@ def search():
     workspace_id_raw = request.args.get("workspace", "").strip()
     q = request.args.get("q", "").strip()
 
-    if not workspace_id_raw or not q:
-        flash("Please select a workspace and enter a search term.", "error")
+    if not workspace_id_raw:
         return redirect(url_for("workspaces.list_workspaces"))
 
     try:
         workspace_id = int(workspace_id_raw)
     except ValueError:
-        flash("Please select a workspace and enter a search term.", "error")
         return redirect(url_for("workspaces.list_workspaces"))
 
     db = get_db()
@@ -60,51 +58,52 @@ def search():
         user_workspaces = [{"workspace_id": r[0], "name": r[1]} for r in cur.fetchall()]
 
     # Query 7 — full-text search restricted to channels the session user belongs to
-    with db.cursor() as cur:
-        cur.execute(
-            """
-            SELECT
-                m.message_id,
-                m.body,
-                m.posted_at,
-                u.username AS posted_by,
-                u.nickname,
-                c.channel_id,
-                c.name      AS channel_name,
-                c.channel_type
-            FROM messages m
-            JOIN channels c        ON m.channel_id = c.channel_id
-            JOIN users u           ON m.user_id = u.user_id
-            JOIN channel_members cm
-                ON cm.channel_id = m.channel_id AND cm.user_id = %s
-            WHERE c.workspace_id = %s
-              AND m.body_tsv @@ plainto_tsquery('english', %s)
-            ORDER BY m.posted_at ASC, m.message_id ASC
-            """,
-            (user_id, workspace_id, q),
-        )
-        rows = cur.fetchall()
-
-    # HTML-escape body first, then wrap keyword occurrences in <mark>
     results = []
-    for r in rows:
-        safe_body = str(escape(r[1]))
-        highlighted = re.sub(
-            re.escape(q),
-            lambda m: f"<mark>{m.group()}</mark>",
-            safe_body,
-            flags=re.IGNORECASE,
-        )
-        results.append({
-            "message_id":      r[0],
-            "highlighted_body": highlighted,
-            "posted_at":       r[2],
-            "posted_by":       r[3],
-            "nickname":        r[4],
-            "channel_id":      r[5],
-            "channel_name":    r[6],
-            "channel_type":    r[7],
-        })
+    if q:
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    m.message_id,
+                    m.body,
+                    m.posted_at,
+                    u.username AS posted_by,
+                    u.nickname,
+                    c.channel_id,
+                    c.name      AS channel_name,
+                    c.channel_type
+                FROM messages m
+                JOIN channels c        ON m.channel_id = c.channel_id
+                JOIN users u           ON m.user_id = u.user_id
+                JOIN channel_members cm
+                    ON cm.channel_id = m.channel_id AND cm.user_id = %s
+                WHERE c.workspace_id = %s
+                  AND m.body_tsv @@ plainto_tsquery('english', %s)
+                ORDER BY m.posted_at ASC, m.message_id ASC
+                """,
+                (user_id, workspace_id, q),
+            )
+            rows = cur.fetchall()
+
+        # HTML-escape body first, then wrap keyword occurrences in <mark>
+        for r in rows:
+            safe_body = str(escape(r[1]))
+            highlighted = re.sub(
+                re.escape(q),
+                lambda m: f"<mark>{m.group()}</mark>",
+                safe_body,
+                flags=re.IGNORECASE,
+            )
+            results.append({
+                "message_id":       r[0],
+                "highlighted_body": highlighted,
+                "posted_at":        r[2],
+                "posted_by":        r[3],
+                "nickname":         r[4],
+                "channel_id":       r[5],
+                "channel_name":     r[6],
+                "channel_type":     r[7],
+            })
 
     return render_template(
         "search.html",

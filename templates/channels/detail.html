@@ -68,10 +68,10 @@
 
       <!-- New DM toggle -->
       <button class="btn btn-link text-muted text-decoration-none small px-2 py-1 w-100 text-start sb-link rounded"
-              type="button" data-bs-toggle="collapse" data-bs-target="#new-dm-collapse">
+              type="button" id="new-dm-toggle">
         + New DM
       </button>
-      <div class="collapse px-1" id="new-dm-collapse">
+      <div class="d-none px-1" id="new-dm-collapse">
         <input type="text" class="form-control form-control-sm mt-1"
                id="dm-search-input" placeholder="Search members…" autocomplete="off">
         <div id="dm-search-results"></div>
@@ -274,6 +274,17 @@ document.getElementById('compose-input').addEventListener('keydown', function (e
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     this.closest('form').requestSubmit();
+  }
+});
+
+// ── New DM panel toggle ──────────────────────────────────────────────────────
+document.getElementById('new-dm-toggle').addEventListener('click', function () {
+  const panel = document.getElementById('new-dm-collapse');
+  const input = document.getElementById('dm-search-input');
+  panel.classList.toggle('d-none');
+  if (!panel.classList.contains('d-none')) {
+    input.focus();
+    input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 });
 

@@ -1,7 +1,7 @@
 import psycopg2
 from flask import (
     Blueprint, render_template, request, redirect,
-    url_for, session, flash, abort,
+    url_for, session, flash, abort, jsonify,
 )
 from db import get_db
 from utils import login_required
@@ -375,6 +375,62 @@ def post_message(ws_id, ch_id):
     db.commit()
 
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
+
+
+# ── GET /workspaces/<ws_id>/channels/<ch_id>/messages/poll ───────────────────
+
+@channels_bp.route("/workspaces/<int:ws_id>/channels/<int:ch_id>/messages/poll")
+@login_required
+def poll_messages(ws_id, ch_id):
+    user_id = session["user_id"]
+    db = get_db()
+
+    with db.cursor() as cur:
+        cur.execute(
+            """SELECT 1 FROM workspace_members
+               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+            (ws_id, user_id),
+        )
+        if not cur.fetchone():
+            return jsonify([])
+
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT 1 FROM channel_members WHERE channel_id = %s AND user_id = %s",
+            (ch_id, user_id),
+        )
+        if not cur.fetchone():
+            return jsonify([])
+
+    try:
+        after = int(request.args.get("after", 0))
+    except (ValueError, TypeError):
+        after = 0
+
+    with db.cursor() as cur:
+        cur.execute(
+            """SELECT m.message_id, m.body, m.posted_at,
+                      u.user_id, u.username, u.nickname
+               FROM messages m
+               JOIN users u ON u.user_id = m.user_id
+               WHERE m.channel_id = %s AND m.message_id > %s
+               ORDER BY m.posted_at ASC, m.message_id ASC""",
+            (ch_id, after),
+        )
+        rows = cur.fetchall()
+
+    return jsonify([
+        {
+            "message_id":  r[0],
+            "body":        r[1],
+            "posted_at":   r[2].strftime("%I:%M %p"),
+            "posted_date": r[2].strftime("%Y-%m-%d"),
+            "user_id":     r[3],
+            "username":    r[4],
+            "nickname":    r[5],
+        }
+        for r in rows
+    ])
 
 
 # ── POST /workspaces/<ws_id>/channels/<ch_id>/join ───────────────────────────

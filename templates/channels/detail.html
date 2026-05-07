@@ -194,6 +194,9 @@
             {% endif %}
 
             <div class="ps-5 mb-1"
+                 data-message-id="{{ m.message_id }}"
+                 data-user-id="{{ m.user_id }}"
+                 data-posted-date="{{ m.posted_at.strftime('%Y-%m-%d') }}"
                  style="white-space:pre-wrap;word-break:break-word;">{{ m.body }}</div>
 
           {% endfor %}
@@ -377,5 +380,106 @@ document.getElementById('new-dm-toggle').addEventListener('click', function () {
   });
 })();
 {% endif %}
+
+// ── Live message polling ─────────────────────────────────────────────────────
+(function () {
+  const feed = document.getElementById('messages');
+  if (!feed) return;
+
+  const AVATAR_COLORS = ['#e74c3c','#3498db','#2ecc71','#9b59b6','#f39c12','#1abc9c','#e67e22','#16a085'];
+
+  // Initialise state from whatever is already rendered
+  const existing = [...feed.querySelectorAll('[data-message-id]')];
+  let lastId     = existing.length ? Math.max(...existing.map(el => +el.dataset.messageId)) : 0;
+  let lastUserId = existing.length ? +existing[existing.length - 1].dataset.userId   : null;
+  let lastDate   = existing.length ?  existing[existing.length - 1].dataset.postedDate : null;
+
+  function isAtBottom() {
+    return feed.scrollHeight - feed.scrollTop - feed.clientHeight < 100;
+  }
+
+  function appendMessage(msg) {
+    // Remove "no messages" placeholder on first append
+    const placeholder = feed.querySelector('.text-center.text-muted.py-5');
+    if (placeholder) placeholder.remove();
+
+    const atBottom = isAtBottom();
+    const msgDate  = msg.posted_date;
+
+    // Date divider when the calendar day changes
+    if (msgDate !== lastDate) {
+      const divWrap = document.createElement('div');
+      divWrap.className = 'text-center my-3';
+      const pill = document.createElement('small');
+      pill.className = 'text-muted border rounded-pill px-3 py-1 bg-white';
+      const d = new Date(msgDate + 'T00:00:00');
+      pill.textContent = d.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+      divWrap.appendChild(pill);
+      feed.appendChild(divWrap);
+    }
+
+    // Header row (only when not a continuation from the same user on the same day)
+    const isContinuation = (lastUserId !== null && msg.user_id === lastUserId && msgDate === lastDate);
+    if (!isContinuation) {
+      const header = document.createElement('div');
+      header.className = 'd-flex gap-2 mt-3';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 fw-bold';
+      avatar.style.cssText = `width:36px;height:36px;background:${AVATAR_COLORS[msg.user_id % AVATAR_COLORS.length]};color:#fff;font-size:14px;`;
+      avatar.textContent = msg.username[0].toUpperCase();
+      header.appendChild(avatar);
+
+      const meta = document.createElement('div');
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'fw-semibold';
+      nameSpan.textContent = msg.username;
+      meta.appendChild(nameSpan);
+
+      if (msg.nickname) {
+        const nickSpan = document.createElement('span');
+        nickSpan.className = 'text-muted small';
+        nickSpan.textContent = ' · ' + msg.nickname;
+        meta.appendChild(nickSpan);
+      }
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'text-muted small ms-2';
+      timeSpan.textContent = msg.posted_at;
+      meta.appendChild(timeSpan);
+
+      header.appendChild(meta);
+      feed.appendChild(header);
+    }
+
+    // Body div (carries data-* for future polls to read)
+    const body = document.createElement('div');
+    body.className = 'ps-5 mb-1';
+    body.dataset.messageId  = msg.message_id;
+    body.dataset.userId     = msg.user_id;
+    body.dataset.postedDate = msg.posted_date;
+    body.style.cssText = 'white-space:pre-wrap;word-break:break-word;';
+    body.textContent = msg.body;   // textContent — never innerHTML — for XSS safety
+    feed.appendChild(body);
+
+    lastId     = msg.message_id;
+    lastUserId = msg.user_id;
+    lastDate   = msgDate;
+
+    if (atBottom) feed.scrollTop = feed.scrollHeight;
+  }
+
+  setInterval(async function () {
+    try {
+      const resp = await fetch(
+        '/workspaces/{{ workspace.workspace_id }}/channels/{{ channel.channel_id }}/messages/poll?after=' + lastId
+      );
+      if (!resp.ok) return;
+      const msgs = await resp.json();
+      msgs.forEach(appendMessage);
+    } catch (_) { /* network hiccup — retry next tick */ }
+  }, 3000);
+})();
 </script>
 {% endblock %}

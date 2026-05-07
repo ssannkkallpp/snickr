@@ -2,6 +2,7 @@ import psycopg2
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from db import get_db
+from logging_config import log_event
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -62,6 +63,7 @@ def signup():
 
     session.clear()
     session["user_id"] = user_id
+    log_event(f'signed up with username "{username}"', username=username)
     return redirect(url_for("workspaces.list_workspaces"))
 
 
@@ -85,15 +87,18 @@ def login():
         row = cur.fetchone()
 
     if row is None or not check_password_hash(row[1], password):
+        log_event("failed to log in — invalid credentials", username=login_input)
         flash("Invalid credentials.", "error")
         return render_template("auth/login.html"), 401
 
     session.clear()
     session["user_id"] = row[0]
+    log_event("logged in", username=login_input)
     return redirect(url_for("workspaces.list_workspaces"))
 
 
 @auth_bp.route("/logout", methods=["POST"])
 def logout():
+    log_event("logged out")
     session.clear()
     return redirect(url_for("auth.login"))

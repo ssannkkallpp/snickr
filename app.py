@@ -1,6 +1,7 @@
 from flask import Flask, redirect, url_for, g
 from config import Config
 from db import close_db
+from logging_config import init_logging
 from utils import get_current_user
 
 
@@ -9,6 +10,8 @@ def create_app():
     app.config.from_object(Config)
 
     app.teardown_appcontext(close_db)
+
+    init_logging(app)
 
     # Make Flask's g available in all Jinja2 templates
     app.jinja_env.globals["g"] = g

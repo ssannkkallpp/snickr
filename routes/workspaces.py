@@ -4,6 +4,7 @@ from flask import (
     url_for, session, flash, abort,
 )
 from db import get_db
+from logging_config import log_event
 from utils import login_required
 
 workspaces_bp = Blueprint("workspaces", __name__, url_prefix="/workspaces")
@@ -101,6 +102,7 @@ def new_workspace():
         db.rollback()
         raise
 
+    log_event(f'created workspace "{name}"')
     return redirect(url_for("workspaces.workspace_detail", ws_id=ws_id))
 
 
@@ -169,6 +171,19 @@ def workspace_detail(ws_id):
         )
         member_count = cur.fetchone()[0]
 
+        cur.execute(
+            """SELECT u.user_id, u.username, u.nickname
+               FROM workspace_members wm
+               JOIN users u ON u.user_id = wm.user_id
+               WHERE wm.workspace_id = %s AND wm.user_id != %s
+               ORDER BY u.username""",
+            (ws_id, user_id),
+        )
+        other_members = [
+            {"user_id": r[0], "username": r[1], "nickname": r[2]}
+            for r in cur.fetchall()
+        ]
+
     is_admin = _is_admin(db, ws_id, user_id)
 
     return render_template(
@@ -178,6 +193,7 @@ def workspace_detail(ws_id):
         public_channels=public_channels,
         member_count=member_count,
         is_admin=is_admin,
+        other_members=other_members,
     )
 
 
@@ -277,6 +293,9 @@ def invite_member(ws_id):
     email = request.form.get("email", "").strip()
 
     with db.cursor() as cur:
+        cur.execute("SELECT name FROM workspaces WHERE workspace_id = %s", (ws_id,))
+        workspace_name = cur.fetchone()[0]
+
         cur.execute("SELECT user_id FROM users WHERE email = %s", (email,))
         target = cur.fetchone()
         if not target:
@@ -317,6 +336,7 @@ def invite_member(ws_id):
         flash("A pending invitation already exists for that user.", "error")
         return redirect(url_for("workspaces.members", ws_id=ws_id))
 
+    log_event(f'invited {email} to join workspace "{workspace_name}"')
     flash("Invitation sent.", "success")
     return redirect(url_for("workspaces.members", ws_id=ws_id))
 
@@ -335,6 +355,14 @@ def remove_member(ws_id, target_user_id):
     if target_user_id == user_id:
         flash("Use the Leave Workspace button to remove yourself.", "error")
         return redirect(url_for("workspaces.members", ws_id=ws_id))
+
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT w.name, u.username FROM workspaces w, users u "
+            "WHERE w.workspace_id = %s AND u.user_id = %s",
+            (ws_id, target_user_id),
+        )
+        workspace_name, target_username = cur.fetchone()
 
     try:
         with db.cursor() as cur:
@@ -356,9 +384,11 @@ def remove_member(ws_id, target_user_id):
         workspace_exists = cur.fetchone() is not None
 
     if not workspace_exists:
+        log_event(f'removed {target_username} from "{workspace_name}" (workspace deleted — no members remaining)')
         flash("Member removed. Workspace deleted (no members remaining).", "info")
         return redirect(url_for("workspaces.list_workspaces"))
 
+    log_event(f'removed {target_username} from workspace "{workspace_name}"')
     flash("Member removed.", "success")
     return redirect(url_for("workspaces.members", ws_id=ws_id))
 
@@ -374,6 +404,11 @@ def leave_workspace(ws_id, target_user_id):
         abort(403)
 
     db = get_db()
+
+    with db.cursor() as cur:
+        cur.execute("SELECT name FROM workspaces WHERE workspace_id = %s", (ws_id,))
+        workspace_name = cur.fetchone()[0]
+
     try:
         with db.cursor() as cur:
             cur.execute(
@@ -389,6 +424,7 @@ def leave_workspace(ws_id, target_user_id):
         db.rollback()
         raise
 
+    log_event(f'left workspace "{workspace_name}"')
     flash("You have left the workspace.", "success")
     return redirect(url_for("workspaces.list_workspaces"))
 
@@ -410,6 +446,13 @@ def add_admin(ws_id, target_user_id):
 
     with db.cursor() as cur:
         cur.execute(
+            "SELECT w.name, u.username FROM workspaces w, users u "
+            "WHERE w.workspace_id = %s AND u.user_id = %s",
+            (ws_id, target_user_id),
+        )
+        workspace_name, target_username = cur.fetchone()
+
+        cur.execute(
             "SELECT 1 FROM workspace_admins WHERE workspace_id = %s AND user_id = %s",
             (ws_id, target_user_id),
         )
@@ -429,6 +472,7 @@ def add_admin(ws_id, target_user_id):
         flash("That user is already an admin of this workspace.", "error")
         return redirect(url_for("workspaces.members", ws_id=ws_id))
 
+    log_event(f'promoted {target_username} to admin in workspace "{workspace_name}"')
     flash("Admin added.", "success")
     return redirect(url_for("workspaces.members", ws_id=ws_id))
 
@@ -445,6 +489,13 @@ def remove_admin(ws_id, target_user_id):
         abort(403)
 
     with db.cursor() as cur:
+        cur.execute(
+            "SELECT w.name, u.username FROM workspaces w, users u "
+            "WHERE w.workspace_id = %s AND u.user_id = %s",
+            (ws_id, target_user_id),
+        )
+        workspace_name, target_username = cur.fetchone()
+
         cur.execute(
             "SELECT COUNT(*) FROM workspace_admins WHERE workspace_id = %s",
             (ws_id,),
@@ -469,6 +520,7 @@ def remove_admin(ws_id, target_user_id):
             (ws_id, target_user_id),
         )
     db.commit()
+    log_event(f'removed {target_username} as admin in workspace "{workspace_name}"')
 
     flash("Admin removed.", "success")
     return redirect(url_for("workspaces.members", ws_id=ws_id))

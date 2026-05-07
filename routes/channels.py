@@ -4,6 +4,7 @@ from flask import (
     url_for, session, flash, abort, jsonify,
 )
 from db import get_db
+from logging_config import log_event
 from utils import login_required
 
 channels_bp = Blueprint("channels", __name__)
@@ -165,6 +166,7 @@ def new_channel(ws_id):
         db.rollback()
         raise
 
+    log_event(f'created {channel_type} channel #{name} in "{workspace["name"]}"')
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
 
@@ -223,6 +225,14 @@ def new_dm(ws_id):
         flash("A direct message channel already exists with this user.", "error")
         return redirect(url_for("workspaces.workspace_detail", ws_id=ws_id))
 
+    with db.cursor() as cur:
+        cur.execute(
+            "SELECT w.name, u.username FROM workspaces w, users u "
+            "WHERE w.workspace_id = %s AND u.user_id = %s",
+            (ws_id, target_user_id),
+        )
+        workspace_name, partner_username = cur.fetchone()
+    log_event(f'started a direct message with {partner_username} in "{workspace_name}"')
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
 
@@ -374,6 +384,28 @@ def post_message(ws_id, ch_id):
         )
     db.commit()
 
+    with db.cursor() as cur:
+        cur.execute(
+            """SELECT c.channel_type, c.name, w.name,
+                      CASE WHEN c.channel_type = 'direct' THEN
+                          (SELECT u.username FROM channel_members cm
+                           JOIN users u ON u.user_id = cm.user_id
+                           WHERE cm.channel_id = c.channel_id AND cm.user_id != %s
+                           LIMIT 1)
+                      END
+               FROM channels c
+               JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE c.channel_id = %s""",
+            (user_id, ch_id),
+        )
+        channel_type, channel_name, workspace_name, dm_partner = cur.fetchone()
+
+    preview = body[:80] + ("…" if len(body) > 80 else "")
+    if channel_type == "direct":
+        log_event(f'sent a direct message to {dm_partner} in "{workspace_name}": "{preview}"')
+    else:
+        log_event(f'posted in #{channel_name} in "{workspace_name}": "{preview}"')
+
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
 
@@ -445,7 +477,9 @@ def join_channel(ws_id, ch_id):
 
     with db.cursor() as cur:
         cur.execute(
-            "SELECT channel_type FROM channels WHERE channel_id = %s AND workspace_id = %s",
+            """SELECT c.channel_type, c.name, w.name
+               FROM channels c JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE c.channel_id = %s AND c.workspace_id = %s""",
             (ch_id, ws_id),
         )
         ch = cur.fetchone()
@@ -454,6 +488,7 @@ def join_channel(ws_id, ch_id):
         # HARD RULE — abort immediately for any non-public channel
         if ch[0] != "public":
             abort(403)
+        channel_name, workspace_name = ch[1], ch[2]
 
         cur.execute(
             "SELECT 1 FROM channel_members WHERE channel_id = %s AND user_id = %s",
@@ -475,6 +510,7 @@ def join_channel(ws_id, ch_id):
         db.rollback()
         return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
+    log_event(f'joined #{channel_name} in "{workspace_name}"')
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
 
@@ -491,11 +527,19 @@ def leave_channel(ws_id, ch_id):
 
     with db.cursor() as cur:
         cur.execute(
+            """SELECT c.name, w.name FROM channels c
+               JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE c.channel_id = %s""",
+            (ch_id,),
+        )
+        channel_name, workspace_name = cur.fetchone()
+        cur.execute(
             "DELETE FROM channel_members WHERE channel_id = %s AND user_id = %s",
             (ch_id, user_id),
         )
     db.commit()
 
+    log_event(f'left #{channel_name} in "{workspace_name}"')
     return redirect(url_for("workspaces.workspace_detail", ws_id=ws_id))
 
 
@@ -511,7 +555,9 @@ def invite_to_channel(ws_id, ch_id):
 
     with db.cursor() as cur:
         cur.execute(
-            "SELECT channel_type, created_by FROM channels WHERE channel_id = %s AND workspace_id = %s",
+            """SELECT c.channel_type, c.created_by, c.name, w.name
+               FROM channels c JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE c.channel_id = %s AND c.workspace_id = %s""",
             (ch_id, ws_id),
         )
         ch = cur.fetchone()
@@ -521,6 +567,7 @@ def invite_to_channel(ws_id, ch_id):
             abort(403)
         if ch[1] != user_id:
             abort(403)
+        channel_name, workspace_name = ch[2], ch[3]
 
     try:
         target_user_id = int(request.form.get("target_user_id", ""))
@@ -529,6 +576,12 @@ def invite_to_channel(ws_id, ch_id):
         return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
     with db.cursor() as cur:
+        cur.execute(
+            "SELECT username FROM users WHERE user_id = %s",
+            (target_user_id,),
+        )
+        target_username = cur.fetchone()[0]
+
         cur.execute(
             """SELECT 1 FROM workspace_members
                WHERE workspace_id = %s AND user_id = %s""",
@@ -568,5 +621,6 @@ def invite_to_channel(ws_id, ch_id):
         flash("A pending invitation already exists for that user in this channel.", "error")
         return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
+    log_event(f'invited {target_username} to #{channel_name} in "{workspace_name}"')
     flash("Invitation sent.", "success")
     return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))

@@ -2,6 +2,7 @@ import re
 from markupsafe import escape
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, abort
 from db import get_db
+from logging_config import log_event
 from utils import login_required
 
 search_bp = Blueprint("search", __name__)
@@ -104,6 +105,11 @@ def search():
                 "channel_name":     r[6],
                 "channel_type":     r[7],
             })
+
+    if q:
+        result_count = len(results)
+        noun = "result" if result_count == 1 else "results"
+        log_event(f'searched for "{q}" in "{workspace_name}" — {result_count} {noun} found')
 
     return render_template(
         "search.html",

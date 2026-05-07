@@ -15,7 +15,7 @@ def _require_workspace_member(db, ws_id, user_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, user_id),
         )
         if not cur.fetchone():
@@ -191,11 +191,11 @@ def new_dm(ws_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, target_user_id),
         )
         if not cur.fetchone():
-            flash("That user is not an active member of this workspace.", "error")
+            flash("That user is not a member of this workspace.", "error")
             return redirect(url_for("workspaces.workspace_detail", ws_id=ws_id))
 
     try:
@@ -388,7 +388,7 @@ def poll_messages(ws_id, ch_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, user_id),
         )
         if not cur.fetchone():
@@ -531,11 +531,11 @@ def invite_to_channel(ws_id, ch_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, target_user_id),
         )
         if not cur.fetchone():
-            flash("That user is not an active member of this workspace.", "error")
+            flash("That user is not a member of this workspace.", "error")
             return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
         cur.execute(

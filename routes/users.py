@@ -42,7 +42,7 @@ def members_search(ws_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, user_id),
         )
         if not cur.fetchone():
@@ -60,7 +60,6 @@ def members_search(ws_id):
             FROM users u
             JOIN workspace_members wm ON u.user_id = wm.user_id
             WHERE wm.workspace_id = %s
-              AND wm.status = 'active'
               AND wm.user_id != %s
               AND (u.username ILIKE %s OR u.nickname ILIKE %s)
             ORDER BY u.username

@@ -15,7 +15,7 @@ def _is_member(db, ws_id, user_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, user_id),
         )
         return cur.fetchone() is not None
@@ -42,12 +42,12 @@ def list_workspaces():
             """
             SELECT w.workspace_id, w.name, w.description,
                    (SELECT COUNT(*) FROM workspace_members wm2
-                    WHERE wm2.workspace_id = w.workspace_id AND wm2.status = 'active') AS member_count,
+                    WHERE wm2.workspace_id = w.workspace_id) AS member_count,
                    (SELECT 1 FROM workspace_admins wa
                     WHERE wa.workspace_id = w.workspace_id AND wa.user_id = %s) IS NOT NULL AS is_admin
             FROM workspaces w
             JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
-            WHERE wm.user_id = %s AND wm.status = 'active'
+            WHERE wm.user_id = %s
             ORDER BY w.name
             """,
             (user_id, user_id),
@@ -88,8 +88,8 @@ def new_workspace():
             )
             ws_id = cur.fetchone()[0]
             cur.execute(
-                """INSERT INTO workspace_members (workspace_id, user_id, status, joined_at)
-                   VALUES (%s, %s, 'active', NOW())""",
+                """INSERT INTO workspace_members (workspace_id, user_id, joined_at)
+                   VALUES (%s, %s, NOW())""",
                 (ws_id, user_id),
             )
             cur.execute(
@@ -164,7 +164,7 @@ def workspace_detail(ws_id):
         public_channels = [{"channel_id": r[0], "name": r[1]} for r in cur.fetchall()]
 
         cur.execute(
-            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id = %s AND status = 'active'",
+            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id = %s",
             (ws_id,),
         )
         member_count = cur.fetchone()[0]
@@ -209,7 +209,7 @@ def members(ws_id):
                     WHERE wa.workspace_id = %s AND wa.user_id = u.user_id) IS NOT NULL AS is_admin
             FROM workspace_members wm
             JOIN users u ON u.user_id = wm.user_id
-            WHERE wm.workspace_id = %s AND wm.status = 'active'
+            WHERE wm.workspace_id = %s
             ORDER BY wm.joined_at
             """,
             (ws_id, ws_id),
@@ -287,7 +287,7 @@ def invite_member(ws_id):
 
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (ws_id, target_id),
         )
         if cur.fetchone():
@@ -339,16 +339,11 @@ def remove_member(ws_id, target_user_id):
     try:
         with db.cursor() as cur:
             cur.execute(
-                "DELETE FROM channel_members WHERE workspace_id = %s AND user_id = %s",
-                (ws_id, target_user_id),
-            )
-            cur.execute(
                 "DELETE FROM workspace_admins WHERE workspace_id = %s AND user_id = %s",
                 (ws_id, target_user_id),
             )
             cur.execute(
-                """UPDATE workspace_members SET status = 'removed', joined_at = NULL
-                   WHERE workspace_id = %s AND user_id = %s""",
+                "DELETE FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
                 (ws_id, target_user_id),
             )
         db.commit()
@@ -382,16 +377,11 @@ def leave_workspace(ws_id, target_user_id):
     try:
         with db.cursor() as cur:
             cur.execute(
-                "DELETE FROM channel_members WHERE workspace_id = %s AND user_id = %s",
-                (ws_id, user_id),
-            )
-            cur.execute(
                 "DELETE FROM workspace_admins WHERE workspace_id = %s AND user_id = %s",
                 (ws_id, user_id),
             )
             cur.execute(
-                """UPDATE workspace_members SET status = 'removed', joined_at = NULL
-                   WHERE workspace_id = %s AND user_id = %s""",
+                "DELETE FROM workspace_members WHERE workspace_id = %s AND user_id = %s",
                 (ws_id, user_id),
             )
         db.commit()
@@ -461,7 +451,7 @@ def remove_admin(ws_id, target_user_id):
         )
         admin_count = cur.fetchone()[0]
         cur.execute(
-            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id = %s AND status = 'active'",
+            "SELECT COUNT(*) FROM workspace_members WHERE workspace_id = %s",
             (ws_id,),
         )
         member_count = cur.fetchone()[0]

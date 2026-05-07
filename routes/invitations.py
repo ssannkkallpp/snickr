@@ -109,10 +109,9 @@ def accept_workspace_invitation(inv_id):
                 (inv_id, user_id),
             )
             cur.execute(
-                """INSERT INTO workspace_members (workspace_id, user_id, status, joined_at)
-                   VALUES (%s, %s, 'active', NOW())
-                   ON CONFLICT (workspace_id, user_id)
-                   DO UPDATE SET status = 'active', joined_at = NOW()""",
+                """INSERT INTO workspace_members (workspace_id, user_id, joined_at)
+                   VALUES (%s, %s, NOW())
+                   ON CONFLICT (workspace_id, user_id) DO NOTHING""",
                 (workspace_id, user_id),
             )
         db.commit()
@@ -199,12 +198,12 @@ def accept_channel_invitation(inv_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (workspace_id, user_id),
         )
         if not cur.fetchone():
             flash(
-                "You must be an active member of the workspace before joining this channel.",
+                "You must be a member of the workspace before joining this channel.",
                 "error",
             )
             return redirect(url_for("invitations.list_invitations"))

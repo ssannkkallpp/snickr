@@ -29,7 +29,7 @@ def search():
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (workspace_id, user_id),
         )
         if not cur.fetchone():
@@ -51,7 +51,7 @@ def search():
             """SELECT w.workspace_id, w.name
                FROM workspaces w
                JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
-               WHERE wm.user_id = %s AND wm.status = 'active'
+               WHERE wm.user_id = %s
                ORDER BY w.name""",
             (user_id,),
         )

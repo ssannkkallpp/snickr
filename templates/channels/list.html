@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "base_sidebar.html" %}
 
 {% block title %}Channels — {{ workspace.name }} — snickr{% endblock %}
 
-{% block content %}
+{% block page_content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div>
     <a href="{{ url_for('workspaces.workspace_detail', ws_id=workspace.workspace_id) }}"
@@ -19,12 +19,12 @@
 {% else %}
 <div class="list-group mb-4">
   {% for ch in joined_channels %}
-  <a href="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
-     class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-    <span>
+  <div class="list-group-item d-flex justify-content-between align-items-center">
+    <a href="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
+       class="text-decoration-none text-body flex-grow-1">
       <span class="text-muted me-1">{% if ch.channel_type == 'private' %}🔒{% else %}#{% endif %}</span>
       {{ ch.name }}
-    </span>
+    </a>
     <span class="d-flex align-items-center gap-2">
       <span class="badge bg-secondary rounded-pill">{{ ch.member_count }}</span>
       {% if ch.channel_type == 'private' %}
@@ -32,8 +32,25 @@
       {% else %}
       <span class="badge bg-info text-dark">Public</span>
       {% endif %}
+      {% if ch.is_pinned %}
+      <form method="post"
+            action="{{ url_for('channels.unbookmark_channel', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
+            class="m-0">
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="bi bi-bookmark-fill me-1"></i>Bookmarked
+        </button>
+      </form>
+      {% else %}
+      <form method="post"
+            action="{{ url_for('channels.bookmark_channel', ws_id=workspace.workspace_id, ch_id=ch.channel_id) }}"
+            class="m-0">
+        <button type="submit" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-bookmark me-1"></i>Bookmark
+        </button>
+      </form>
+      {% endif %}
     </span>
-  </a>
+  </div>
   {% endfor %}
 </div>
 {% endif %}

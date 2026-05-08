@@ -1,0 +1,26 @@
+<div class="d-flex justify-content-between align-items-center mb-2 mt-1">
+  <span class="text-uppercase text-muted fw-semibold" style="font-size:.75rem;">Bookmarks</span>
+</div>
+
+{% if not bookmark_groups %}
+<p class="text-muted small ps-2 mb-0">No bookmarks yet.</p>
+{% else %}
+{% for grp in bookmark_groups %}
+<div class="mb-2">
+  <a href="{{ url_for('workspaces.workspace_detail', ws_id=grp.workspace_id) }}"
+     class="d-block text-uppercase text-muted fw-semibold text-decoration-none rounded px-2 py-1 mb-1 text-truncate sidebar-link sb-link"
+     style="font-size:.65rem; letter-spacing:.04em;">
+    {{ grp.workspace_name }}
+  </a>
+  {% for ch in grp.channels %}
+  <a href="{{ url_for('channels.channel_detail', ws_id=grp.workspace_id, ch_id=ch.channel_id) }}"
+     class="d-block text-decoration-none text-dark py-1 px-2 rounded sidebar-link sb-link text-truncate small">
+    {%- if ch.channel_type == 'direct' -%}@ {{ ch.dm_partner or 'Unknown' }}
+    {%- elif ch.channel_type == 'private' -%}🔒 {{ ch.name }}
+    {%- else -%}# {{ ch.name }}
+    {%- endif -%}
+  </a>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endif %}

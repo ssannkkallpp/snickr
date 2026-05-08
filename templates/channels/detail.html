@@ -86,6 +86,10 @@
 
     </div><!-- /px-2 -->
 
+    <div class="px-2 py-2 border-top">
+      {% include "bookmarks.html" %}
+    </div>
+
     <!-- Bottom: current user -->
     <div class="px-3 py-2 border-top mt-auto">
       <a href="/profile" class="text-muted text-decoration-none small">
@@ -118,6 +122,28 @@
           {{ channel_members | length }}
           member{{ 's' if channel_members | length != 1 else '' }}
         </small>
+
+        {% if channel.is_pinned %}
+        <form method="post"
+              action="{{ url_for('channels.unbookmark_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}"
+              class="m-0">
+          <input type="hidden" name="next"
+                 value="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
+          <button type="submit" class="btn btn-sm btn-primary" title="Remove bookmark">
+            <i class="bi bi-bookmark-fill me-1"></i>Bookmarked
+          </button>
+        </form>
+        {% else %}
+        <form method="post"
+              action="{{ url_for('channels.bookmark_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}"
+              class="m-0">
+          <input type="hidden" name="next"
+                 value="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary" title="Bookmark this channel">
+            <i class="bi bi-bookmark me-1"></i>Bookmark
+          </button>
+        </form>
+        {% endif %}
 
         {% if channel.channel_type == 'private' and is_channel_creator %}
         <div style="position:relative;">

@@ -53,21 +53,29 @@ def list_channels(ws_id):
             abort(404)
         workspace = {"workspace_id": ws[0], "name": ws[1]}
 
-        # Channels the user has joined (non-DM only)
+        # Channels the user has joined (non-DM only).
+        # is_pinned is surfaced so the row can render the right Bookmark/Bookmarked
+        # button, but it does NOT affect sort order — the bookmarks rail is the
+        # only surface that promotes favorites.
         cur.execute(
             """
             SELECT c.channel_id, c.name, c.channel_type,
                    (SELECT COUNT(*) FROM channel_members cm2
-                    WHERE cm2.channel_id = c.channel_id) AS member_count
+                    WHERE cm2.channel_id = c.channel_id) AS member_count,
+                   (cb.channel_id IS NOT NULL) AS is_pinned
             FROM channels c
-            JOIN channel_members cm ON c.channel_id = cm.channel_id AND cm.user_id = %s
+            JOIN channel_members cm
+              ON c.channel_id = cm.channel_id AND cm.user_id = %s
+            LEFT JOIN channel_bookmarks cb
+              ON cb.channel_id = c.channel_id AND cb.user_id = %s
             WHERE c.workspace_id = %s AND c.channel_type != 'direct'
             ORDER BY c.channel_type, c.name
             """,
-            (user_id, ws_id),
+            (user_id, user_id, ws_id),
         )
         joined_channels = [
-            {"channel_id": r[0], "name": r[1], "channel_type": r[2], "member_count": r[3]}
+            {"channel_id": r[0], "name": r[1], "channel_type": r[2],
+             "member_count": r[3], "is_pinned": r[4]}
             for r in cur.fetchall()
         ]
 
@@ -258,16 +266,20 @@ def channel_detail(ws_id, ch_id):
         workspace = {"workspace_id": ws[0], "name": ws[1]}
 
         cur.execute(
-            """SELECT channel_id, name, channel_type, created_at, created_by
-               FROM channels WHERE channel_id = %s AND workspace_id = %s""",
-            (ch_id, ws_id),
+            """SELECT c.channel_id, c.name, c.channel_type, c.created_at, c.created_by,
+                      (cb.channel_id IS NOT NULL) AS is_pinned
+               FROM channels c
+               LEFT JOIN channel_bookmarks cb
+                 ON cb.channel_id = c.channel_id AND cb.user_id = %s
+               WHERE c.channel_id = %s AND c.workspace_id = %s""",
+            (user_id, ch_id, ws_id),
         )
         ch = cur.fetchone()
         if not ch:
             abort(404)
         channel = {
             "channel_id": ch[0], "name": ch[1], "channel_type": ch[2],
-            "created_at": ch[3], "created_by": ch[4],
+            "created_at": ch[3], "created_by": ch[4], "is_pinned": ch[5],
         }
 
         cur.execute(
@@ -296,7 +308,8 @@ def channel_detail(ws_id, ch_id):
             for r in cur.fetchall()
         ]
 
-        # Sidebar: all channels this user belongs to in the workspace
+        # Sidebar: all channels this user belongs to in the workspace.
+        # Alphabetical within each type; the bookmarks rail handles favorites.
         cur.execute(
             """SELECT c.channel_id, c.name, c.channel_type,
                       CASE WHEN c.channel_type = 'direct' THEN
@@ -306,13 +319,15 @@ def channel_detail(ws_id, ch_id):
                            LIMIT 1)
                       END AS dm_partner
                FROM channels c
-               JOIN channel_members cm ON c.channel_id = cm.channel_id AND cm.user_id = %s
+               JOIN channel_members cm
+                 ON c.channel_id = cm.channel_id AND cm.user_id = %s
                WHERE c.workspace_id = %s
                ORDER BY c.channel_type, c.name NULLS LAST""",
             (user_id, user_id, ws_id),
         )
         sidebar_channels = [
-            {"channel_id": r[0], "name": r[1], "channel_type": r[2], "dm_partner": r[3]}
+            {"channel_id": r[0], "name": r[1], "channel_type": r[2],
+             "dm_partner": r[3]}
             for r in cur.fetchall()
         ]
 
@@ -541,6 +556,74 @@ def leave_channel(ws_id, ch_id):
 
     log_event(f'left #{channel_name} in "{workspace_name}"')
     return redirect(url_for("workspaces.workspace_detail", ws_id=ws_id))
+
+
+# ── POST /workspaces/<ws_id>/channels/<ch_id>/bookmark ───────────────────────
+
+@channels_bp.route("/workspaces/<int:ws_id>/channels/<int:ch_id>/bookmark", methods=["POST"])
+@login_required
+def bookmark_channel(ws_id, ch_id):
+    user_id = session["user_id"]
+    db = get_db()
+
+    _require_workspace_member(db, ws_id, user_id)
+    _require_channel_member(db, ch_id, user_id)
+
+    with db.cursor() as cur:
+        cur.execute(
+            """INSERT INTO channel_bookmarks (channel_id, user_id)
+               VALUES (%s, %s)
+               ON CONFLICT (channel_id, user_id) DO NOTHING""",
+            (ch_id, user_id),
+        )
+
+        cur.execute(
+            """SELECT c.name, c.channel_type, w.name
+               FROM channels c JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE c.channel_id = %s""",
+            (ch_id,),
+        )
+        channel_name, channel_type, workspace_name = cur.fetchone()
+    db.commit()
+
+    label = f"#{channel_name}" if channel_type != "direct" else "a direct message"
+    log_event(f'pinned {label} in "{workspace_name}"')
+    next_url = request.form.get("next") or url_for("channels.list_channels", ws_id=ws_id)
+    return redirect(next_url)
+
+
+# ── POST /workspaces/<ws_id>/channels/<ch_id>/unbookmark ─────────────────────
+
+@channels_bp.route("/workspaces/<int:ws_id>/channels/<int:ch_id>/unbookmark", methods=["POST"])
+@login_required
+def unbookmark_channel(ws_id, ch_id):
+    user_id = session["user_id"]
+    db = get_db()
+
+    _require_workspace_member(db, ws_id, user_id)
+
+    with db.cursor() as cur:
+        cur.execute(
+            """SELECT c.name, c.channel_type, w.name
+               FROM channels c JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE c.channel_id = %s""",
+            (ch_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        channel_name, channel_type, workspace_name = row
+
+        cur.execute(
+            "DELETE FROM channel_bookmarks WHERE channel_id = %s AND user_id = %s",
+            (ch_id, user_id),
+        )
+    db.commit()
+
+    label = f"#{channel_name}" if channel_type != "direct" else "a direct message"
+    log_event(f'unpinned {label} in "{workspace_name}"')
+    next_url = request.form.get("next") or url_for("channels.list_channels", ws_id=ws_id)
+    return redirect(next_url)
 
 
 # ── POST /workspaces/<ws_id>/channels/<ch_id>/invite ─────────────────────────

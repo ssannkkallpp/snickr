@@ -127,7 +127,8 @@ def workspace_detail(ws_id):
             abort(404)
         workspace = {"workspace_id": row[0], "name": row[1], "description": row[2]}
 
-        # Channels the user belongs to; DM rows carry the partner's username
+        # Channels the user belongs to; DM rows carry the partner's username.
+        # Pinned channels surface first within each channel_type group.
         cur.execute(
             """
             SELECT c.channel_id, c.name, c.channel_type,
@@ -136,16 +137,21 @@ def workspace_detail(ws_id):
                         JOIN users u ON u.user_id = cm2.user_id
                         WHERE cm2.channel_id = c.channel_id AND cm2.user_id != %s
                         LIMIT 1)
-                   END AS dm_partner
+                   END AS dm_partner,
+                   (cb.channel_id IS NOT NULL) AS is_pinned
             FROM channels c
-            JOIN channel_members cm ON c.channel_id = cm.channel_id AND cm.user_id = %s
+            JOIN channel_members cm
+              ON c.channel_id = cm.channel_id AND cm.user_id = %s
+            LEFT JOIN channel_bookmarks cb
+              ON cb.channel_id = c.channel_id AND cb.user_id = %s
             WHERE c.workspace_id = %s
-            ORDER BY c.channel_type, c.name NULLS LAST
+            ORDER BY c.channel_type, is_pinned DESC, c.name NULLS LAST
             """,
-            (user_id, user_id, ws_id),
+            (user_id, user_id, user_id, ws_id),
         )
         channels = [
-            {"channel_id": r[0], "name": r[1], "channel_type": r[2], "dm_partner": r[3]}
+            {"channel_id": r[0], "name": r[1], "channel_type": r[2],
+             "dm_partner": r[3], "is_pinned": r[4]}
             for r in cur.fetchall()
         ]
 

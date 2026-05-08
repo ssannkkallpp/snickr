@@ -8,4 +8,9 @@ build/
 .venv/
 venv/
 instance/
+seed_credentials.txt
+logs/
 logs/*.log
+seed.py
+add_users.py
+.DS_Store

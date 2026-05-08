@@ -571,25 +571,32 @@ def bookmark_channel(ws_id, ch_id):
 
     with db.cursor() as cur:
         cur.execute(
-            """INSERT INTO channel_bookmarks (channel_id, user_id)
-               VALUES (%s, %s)
-               ON CONFLICT (channel_id, user_id) DO NOTHING""",
-            (ch_id, user_id),
-        )
-
-        cur.execute(
             """SELECT c.name, c.channel_type, w.name
                FROM channels c JOIN workspaces w ON w.workspace_id = c.workspace_id
-               WHERE c.channel_id = %s""",
-            (ch_id,),
+               WHERE c.channel_id = %s AND c.workspace_id = %s""",
+            (ch_id, ws_id),
         )
-        channel_name, channel_type, workspace_name = cur.fetchone()
-    db.commit()
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        channel_name, channel_type, workspace_name = row
+
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                """INSERT INTO channel_bookmarks (channel_id, user_id)
+                   VALUES (%s, %s)
+                   ON CONFLICT (channel_id, user_id) DO NOTHING""",
+                (ch_id, user_id),
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     label = f"#{channel_name}" if channel_type != "direct" else "a direct message"
     log_event(f'pinned {label} in "{workspace_name}"')
-    next_url = request.form.get("next") or url_for("channels.list_channels", ws_id=ws_id)
-    return redirect(next_url)
+    return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
 
 # ── POST /workspaces/<ws_id>/channels/<ch_id>/unbookmark ─────────────────────
@@ -601,29 +608,34 @@ def unbookmark_channel(ws_id, ch_id):
     db = get_db()
 
     _require_workspace_member(db, ws_id, user_id)
+    _require_channel_member(db, ch_id, user_id)
 
     with db.cursor() as cur:
         cur.execute(
             """SELECT c.name, c.channel_type, w.name
                FROM channels c JOIN workspaces w ON w.workspace_id = c.workspace_id
-               WHERE c.channel_id = %s""",
-            (ch_id,),
+               WHERE c.channel_id = %s AND c.workspace_id = %s""",
+            (ch_id, ws_id),
         )
         row = cur.fetchone()
         if not row:
             abort(404)
         channel_name, channel_type, workspace_name = row
 
-        cur.execute(
-            "DELETE FROM channel_bookmarks WHERE channel_id = %s AND user_id = %s",
-            (ch_id, user_id),
-        )
-    db.commit()
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "DELETE FROM channel_bookmarks WHERE channel_id = %s AND user_id = %s",
+                (ch_id, user_id),
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     label = f"#{channel_name}" if channel_type != "direct" else "a direct message"
     log_event(f'unpinned {label} in "{workspace_name}"')
-    next_url = request.form.get("next") or url_for("channels.list_channels", ws_id=ws_id)
-    return redirect(next_url)
+    return redirect(url_for("channels.channel_detail", ws_id=ws_id, ch_id=ch_id))
 
 
 # ── POST /workspaces/<ws_id>/channels/<ch_id>/invite ─────────────────────────

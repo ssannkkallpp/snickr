@@ -127,8 +127,6 @@
         <form method="post"
               action="{{ url_for('channels.unbookmark_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}"
               class="m-0">
-          <input type="hidden" name="next"
-                 value="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
           <button type="submit" class="btn btn-sm btn-primary" title="Remove bookmark">
             <i class="bi bi-bookmark-fill me-1"></i>Bookmarked
           </button>
@@ -137,8 +135,6 @@
         <form method="post"
               action="{{ url_for('channels.bookmark_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}"
               class="m-0">
-          <input type="hidden" name="next"
-                 value="{{ url_for('channels.channel_detail', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
           <button type="submit" class="btn btn-sm btn-outline-primary" title="Bookmark this channel">
             <i class="bi bi-bookmark me-1"></i>Bookmark
           </button>

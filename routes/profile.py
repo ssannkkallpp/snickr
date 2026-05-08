@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
 from db import get_db
+from logging_config import log_event
 from utils import login_required
 
 profile_bp = Blueprint("profile", __name__)
@@ -77,6 +78,7 @@ def profile():
                 (nickname, new_hash, user_id),
             )
         db.commit()
+        log_event("updated their profile — changed nickname and password")
     else:
         with db.cursor() as cur:
             cur.execute(
@@ -84,6 +86,7 @@ def profile():
                 (nickname, user_id),
             )
         db.commit()
+        log_event("updated their profile — changed nickname")
 
     flash("Profile updated successfully.", "success")
     return redirect(url_for("profile.profile"))

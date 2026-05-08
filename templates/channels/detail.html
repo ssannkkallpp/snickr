@@ -120,12 +120,13 @@
         </small>
 
         {% if channel.channel_type == 'private' and is_channel_creator %}
-        <div class="dropdown">
-          <button class="btn btn-sm btn-outline-primary dropdown-toggle"
-                  type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
+        <div style="position:relative;">
+          <button class="btn btn-sm btn-outline-primary" type="button" id="invite-toggle">
             Invite
           </button>
-          <div class="dropdown-menu p-3" style="min-width:280px;">
+          <div class="d-none border rounded p-2 bg-white shadow-sm"
+               id="invite-collapse"
+               style="min-width:260px; position:fixed; z-index:1050;">
             <p class="small text-muted mb-2">Search workspace members</p>
             <form method="post"
                   action="{{ url_for('channels.invite_to_channel', ws_id=workspace.workspace_id, ch_id=channel.channel_id) }}">
@@ -136,7 +137,7 @@
               </div>
               <div id="invite-search-results" class="mb-2"></div>
               <button type="submit" class="btn btn-primary btn-sm w-100"
-                      id="invite-submit-btn" disabled>Send Invitation</button>
+                      id="invite-submit-btn">Send Invitation</button>
             </form>
           </div>
         </div>
@@ -335,6 +336,30 @@ document.getElementById('new-dm-toggle').addEventListener('click', function () {
     resultsEl.appendChild(ul);
   });
 })();
+
+// ── Private channel invite toggle ────────────────────────────────────────────
+{% if channel.channel_type == 'private' and is_channel_creator %}
+(function () {
+  const btn   = document.getElementById('invite-toggle');
+  const panel = document.getElementById('invite-collapse');
+  if (!btn) return;
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    panel.classList.toggle('d-none');
+    if (!panel.classList.contains('d-none')) {
+      const rect = btn.getBoundingClientRect();
+      panel.style.top   = (rect.bottom + 4) + 'px';
+      panel.style.right = (window.innerWidth - rect.right) + 'px';
+      document.getElementById('invite-search-input').focus();
+    }
+  });
+  document.addEventListener('click', function (e) {
+    if (!panel.contains(e.target) && e.target !== btn) {
+      panel.classList.add('d-none');
+    }
+  });
+})();
+{% endif %}
 
 // ── Private channel invite member search ─────────────────────────────────────
 {% if channel.channel_type == 'private' and is_channel_creator %}

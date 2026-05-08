@@ -2,6 +2,7 @@ import re
 from markupsafe import escape
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, abort
 from db import get_db
+from logging_config import log_event
 from utils import login_required
 
 search_bp = Blueprint("search", __name__)
@@ -29,7 +30,7 @@ def search():
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (workspace_id, user_id),
         )
         if not cur.fetchone():
@@ -51,7 +52,7 @@ def search():
             """SELECT w.workspace_id, w.name
                FROM workspaces w
                JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
-               WHERE wm.user_id = %s AND wm.status = 'active'
+               WHERE wm.user_id = %s
                ORDER BY w.name""",
             (user_id,),
         )
@@ -104,6 +105,11 @@ def search():
                 "channel_name":     r[6],
                 "channel_type":     r[7],
             })
+
+    if q:
+        result_count = len(results)
+        noun = "result" if result_count == 1 else "results"
+        log_event(f'searched for "{q}" in "{workspace_name}" — {result_count} {noun} found')
 
     return render_template(
         "search.html",

@@ -1,6 +1,7 @@
 import psycopg2
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, abort
 from db import get_db
+from logging_config import log_event
 from utils import login_required
 
 invitations_bp = Blueprint("invitations", __name__)
@@ -109,10 +110,9 @@ def accept_workspace_invitation(inv_id):
                 (inv_id, user_id),
             )
             cur.execute(
-                """INSERT INTO workspace_members (workspace_id, user_id, status, joined_at)
-                   VALUES (%s, %s, 'active', NOW())
-                   ON CONFLICT (workspace_id, user_id)
-                   DO UPDATE SET status = 'active', joined_at = NOW()""",
+                """INSERT INTO workspace_members (workspace_id, user_id, joined_at)
+                   VALUES (%s, %s, NOW())
+                   ON CONFLICT (workspace_id, user_id) DO NOTHING""",
                 (workspace_id, user_id),
             )
         db.commit()
@@ -120,6 +120,7 @@ def accept_workspace_invitation(inv_id):
         db.rollback()
         raise
 
+    log_event(f'accepted an invitation to workspace "{workspace_name}"')
     flash(f"You have joined {workspace_name}.", "success")
     return redirect(url_for("workspaces.workspace_detail", ws_id=workspace_id))
 
@@ -150,12 +151,21 @@ def decline_workspace_invitation(inv_id):
 
     with db.cursor() as cur:
         cur.execute(
+            "SELECT name FROM workspaces WHERE workspace_id = "
+            "(SELECT workspace_id FROM workspace_invitations WHERE invitation_id = %s)",
+            (inv_id,),
+        )
+        workspace_name = cur.fetchone()[0]
+
+    with db.cursor() as cur:
+        cur.execute(
             """UPDATE workspace_invitations SET status = 'declined'
                WHERE invitation_id = %s AND invitee_id = %s""",
             (inv_id, user_id),
         )
     db.commit()
 
+    log_event(f'declined an invitation to workspace "{workspace_name}"')
     flash("Invitation declined.", "info")
     return redirect(url_for("invitations.list_invitations"))
 
@@ -171,9 +181,10 @@ def accept_channel_invitation(inv_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT ci.invitation_id, ci.channel_id, ci.status,
-                      c.workspace_id, c.channel_type, c.name
+                      c.workspace_id, c.channel_type, c.name, w.name
                FROM channel_invitations ci
                JOIN channels c ON ci.channel_id = c.channel_id
+               JOIN workspaces w ON w.workspace_id = c.workspace_id
                WHERE ci.invitation_id = %s AND ci.invitee_id = %s""",
             (inv_id, user_id),
         )
@@ -182,11 +193,12 @@ def accept_channel_invitation(inv_id):
     if not inv:
         abort(403)
 
-    channel_id   = inv[1]
-    status       = inv[2]
-    workspace_id = inv[3]
-    channel_type = inv[4]
-    channel_name = inv[5]
+    channel_id     = inv[1]
+    status         = inv[2]
+    workspace_id   = inv[3]
+    channel_type   = inv[4]
+    channel_name   = inv[5]
+    workspace_name = inv[6]
 
     if status != "pending":
         flash("This invitation is no longer active.", "error")
@@ -199,12 +211,12 @@ def accept_channel_invitation(inv_id):
     with db.cursor() as cur:
         cur.execute(
             """SELECT 1 FROM workspace_members
-               WHERE workspace_id = %s AND user_id = %s AND status = 'active'""",
+               WHERE workspace_id = %s AND user_id = %s""",
             (workspace_id, user_id),
         )
         if not cur.fetchone():
             flash(
-                "You must be an active member of the workspace before joining this channel.",
+                "You must be a member of the workspace before joining this channel.",
                 "error",
             )
             return redirect(url_for("invitations.list_invitations"))
@@ -230,6 +242,7 @@ def accept_channel_invitation(inv_id):
         db.rollback()
         raise
 
+    log_event(f'accepted an invitation to #{channel_name} in "{workspace_name}"')
     flash(f"You have joined #{channel_name}.", "success")
     return redirect(url_for("channels.channel_detail", ws_id=workspace_id, ch_id=channel_id))
 
@@ -260,11 +273,23 @@ def decline_channel_invitation(inv_id):
 
     with db.cursor() as cur:
         cur.execute(
+            """SELECT c.name, w.name
+               FROM channel_invitations ci
+               JOIN channels c ON c.channel_id = ci.channel_id
+               JOIN workspaces w ON w.workspace_id = c.workspace_id
+               WHERE ci.invitation_id = %s""",
+            (inv_id,),
+        )
+        channel_name, workspace_name = cur.fetchone()
+
+    with db.cursor() as cur:
+        cur.execute(
             """UPDATE channel_invitations SET status = 'declined'
                WHERE invitation_id = %s AND invitee_id = %s""",
             (inv_id, user_id),
         )
     db.commit()
 
+    log_event(f'declined an invitation to #{channel_name} in "{workspace_name}"')
     flash("Invitation declined.", "info")
     return redirect(url_for("invitations.list_invitations"))

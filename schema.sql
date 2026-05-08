@@ -19,7 +19,6 @@ CREATE TABLE workspace_members (
     workspace_id INT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
     user_id      INT       NOT NULL REFERENCES users(user_id),
     joined_at    TIMESTAMP DEFAULT NOW(),
-    status      VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'removed')),
     PRIMARY KEY (workspace_id, user_id)
 );
 
@@ -164,20 +163,18 @@ CREATE TRIGGER check_direct_channel_limit
 CREATE OR REPLACE FUNCTION delete_workspace_on_last_member()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF OLD.status = 'active' AND (SELECT COUNT(*) FROM workspace_members
-        WHERE workspace_id = OLD.workspace_id
-          AND status = 'active') <= 1 THEN
+    IF (SELECT COUNT(*) FROM workspace_members
+        WHERE workspace_id = OLD.workspace_id) <= 1 THEN
         DELETE FROM workspaces
         WHERE workspace_id = OLD.workspace_id;
     END IF;
-    RETURN NEW;
+    RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER check_workspace_last_member
-    BEFORE UPDATE ON workspace_members
+    BEFORE DELETE ON workspace_members
     FOR EACH ROW
-    WHEN (NEW.status = 'removed')
     EXECUTE FUNCTION delete_workspace_on_last_member();
 
 

@@ -2,7 +2,7 @@ from flask import Flask, redirect, url_for, g
 from config import Config
 from db import close_db
 from logging_config import init_logging
-from utils import get_current_user
+from utils import get_current_user, get_bookmark_groups
 
 
 def create_app():
@@ -40,6 +40,10 @@ def create_app():
     @app.before_request
     def load_current_user():
         g.current_user = get_current_user()
+
+    @app.context_processor
+    def inject_bookmarks():
+        return {"bookmark_groups": get_bookmark_groups()}
 
     @app.route("/")
     def index():

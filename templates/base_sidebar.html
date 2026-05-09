@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{# Wrap the page in the same horizontal container as the navbar so the
+   sidebar lines up with the brand mark instead of clinging to the viewport. #}
+{% block main_class %}container mt-3{% endblock %}
+
+{% block content %}
+<div class="d-flex gap-4 align-items-start">
+
+  <aside class="flex-shrink-0 pe-3 border-end bookmarks-rail"
+         style="width: 200px;">
+    {% include "bookmarks.html" %}
+  </aside>
+
+  <div class="flex-grow-1" style="min-width: 0;">
+    {% block page_content %}{% endblock %}
+  </div>
+
+</div>
+
+<style>
+.sb-link:hover { background-color: rgba(0,0,0,.06); }
+.bookmarks-rail {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+</style>
+{% endblock %}

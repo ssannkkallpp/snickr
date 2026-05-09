@@ -177,4 +177,19 @@ CREATE TRIGGER check_workspace_last_member
     FOR EACH ROW
     EXECUTE FUNCTION delete_workspace_on_last_member();
 
+-- ── CHANNEL BOOKMARKS ────────────────────────────────────────────────────────
+-- A bookmark only exists while the user is still a member of the channel.
+-- The composite FK below ties the bookmark's lifetime to the membership row,
+-- so leaving a channel/workspace or deleting a channel cleans up bookmarks
+-- via cascade with no application code or triggers.
+CREATE TABLE channel_bookmarks (
+    channel_id INT       NOT NULL,
+    user_id    INT       NOT NULL,
+    pinned_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (channel_id, user_id),
+    FOREIGN KEY (channel_id, user_id)
+        REFERENCES channel_members(channel_id, user_id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_channel_bookmarks_user ON channel_bookmarks (user_id);
 

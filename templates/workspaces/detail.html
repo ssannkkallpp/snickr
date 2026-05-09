@@ -6,7 +6,7 @@
 {% set regular_channels = channels | selectattr('channel_type', 'ne', 'direct') | list %}
 {% set dm_channels      = channels | selectattr('channel_type', 'equalto', 'direct') | list %}
 
-<div class="row g-0" style="min-height: 70vh;">
+<div class="row g-0" style="min-height: calc(100vh - 100px);">
 
   <!-- ── Sidebar ──────────────────────────────────────────────── -->
   <div class="col-md-3 border-end pe-3">
@@ -20,7 +20,7 @@
     {% if regular_channels %}
       {% for ch in regular_channels %}
       <a href="/workspaces/{{ workspace.workspace_id }}/channels/{{ ch.channel_id }}"
-         class="d-block text-decoration-none text-dark py-1 px-2 rounded sidebar-link">
+         class="d-block text-decoration-none text-dark py-1 px-2 rounded sidebar-link small">
         {% if ch.channel_type == 'private' %}🔒{% else %}#{% endif %}
         {{ ch.name }}
       </a>
@@ -35,7 +35,7 @@
     </div>
     {% for ch in dm_channels %}
     <a href="/workspaces/{{ workspace.workspace_id }}/channels/{{ ch.channel_id }}"
-       class="d-block text-decoration-none text-dark py-1 px-2 rounded sidebar-link">
+       class="d-block text-decoration-none text-dark py-1 px-2 rounded sidebar-link small">
       @ {{ ch.dm_partner or 'Unknown' }}
     </a>
     {% endfor %}
@@ -70,6 +70,10 @@
        class="d-block small text-decoration-none text-muted py-1 px-2 rounded sidebar-link">
       Search messages
     </a>
+
+    <hr class="my-3">
+
+    {% include "bookmarks.html" %}
   </div>
 
   <!-- ── Main content ─────────────────────────────────────────── -->
@@ -127,5 +131,6 @@
 
 <style>
 .sidebar-link:hover { background-color: rgba(0,0,0,.05); }
+.sb-link:hover      { background-color: rgba(0,0,0,.07); }
 </style>
 {% endblock %}

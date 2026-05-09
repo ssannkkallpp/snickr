@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "base_sidebar.html" %}
 
 {% block title %}{{ workspace.name }} — Pending Invitations — snickr{% endblock %}
 
-{% block content %}
+{% block page_content %}
 <div class="mb-4">
   <a href="{{ url_for('workspaces.members', ws_id=workspace.workspace_id) }}"
      class="text-muted text-decoration-none small">← Members</a>
